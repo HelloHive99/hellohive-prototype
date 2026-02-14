@@ -99,7 +99,7 @@ export default function WorkOrderDetailPage() {
       </div>
 
       {/* Description */}
-      <Card>
+      <Card className="animate-fadeIn">
         <h2 className="text-lg font-semibold tracking-tight text-[#F5F0EB] mb-4">
           Description
         </h2>
@@ -109,7 +109,7 @@ export default function WorkOrderDetailPage() {
       </Card>
 
       {/* Location */}
-      <Card>
+      <Card className="animate-fadeIn">
         <h2 className="text-lg font-semibold tracking-tight text-[#F5F0EB] mb-4">
           Location
         </h2>
@@ -154,7 +154,7 @@ export default function WorkOrderDetailPage() {
 
       {/* Assigned Vendor - Show if already dispatched */}
       {workOrder.status !== 'open' && assignedVendor && (
-        <Card>
+        <Card className="animate-fadeIn">
           <h2 className="text-lg font-semibold tracking-tight text-[#F5F0EB] mb-4">
             Assigned Vendor
           </h2>
@@ -170,7 +170,7 @@ export default function WorkOrderDetailPage() {
       )}
 
       {/* Timeline */}
-      <Card>
+      <Card className="animate-fadeIn">
         <h2 className="text-lg font-semibold tracking-tight text-[#F5F0EB] mb-6">
           Timeline
         </h2>

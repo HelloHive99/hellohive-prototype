@@ -3,6 +3,10 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { User, users as seedUsers, workOrders as seedWorkOrders, activityFeed as seedActivityFeed, WorkOrder, ActivityFeedItem } from '@/data/seed-data';
 
+// Store original seed data snapshots for demo reset
+const ORIGINAL_WORK_ORDERS = [...seedWorkOrders];
+const ORIGINAL_ACTIVITY_FEED = [...seedActivityFeed];
+
 export type Permission =
   | 'viewDashboard'
   | 'viewCostData'
@@ -24,6 +28,7 @@ interface UserContextType {
   addWorkOrder: (wo: WorkOrder) => void;
   addActivityFeedItem: (item: ActivityFeedItem) => void;
   updateWorkOrder: (id: string, updates: Partial<WorkOrder>) => void;
+  resetDemoData: () => void;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -112,6 +117,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
     );
   };
 
+  const resetDemoData = () => {
+    setWorkOrders([...ORIGINAL_WORK_ORDERS]);
+    setActivityFeed([...ORIGINAL_ACTIVITY_FEED]);
+    setCurrentUser(seedUsers[0]); // Reset to Marcus Reyes (Admin)
+  };
+
   return (
     <UserContext.Provider
       value={{
@@ -124,6 +135,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         addWorkOrder,
         addActivityFeedItem,
         updateWorkOrder,
+        resetDemoData,
       }}
     >
       {children}

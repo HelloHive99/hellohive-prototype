@@ -1,22 +1,22 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, ClipboardList, Users, Building2, Package } from 'lucide-react';
 import { useUser } from '@/context/UserContext';
 import { cn } from '@/lib/utils';
+import { ResetDemoDialog } from '@/components/ResetDemoDialog';
 
 const navItems = [
   { name: 'Dashboard', href: '/', icon: Home, permission: 'viewDashboard' as const },
   { name: 'Work Orders', href: '/work-orders', icon: ClipboardList, permission: 'viewDashboard' as const },
-  { name: 'Vendors', href: '/vendors', icon: Users, permission: 'manageVendors' as const },
-  { name: 'Properties', href: '/properties', icon: Building2, permission: 'viewDashboard' as const },
-  { name: 'Assets', href: '/assets', icon: Package, permission: 'viewDashboard' as const },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { hasPermission } = useUser();
+  const { hasPermission, currentUser, resetDemoData } = useUser();
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
 
   return (
     <aside className="bg-[#1E1520] border-r border-slate-800/50 w-64 min-h-screen flex flex-col">
@@ -59,6 +59,25 @@ export function Sidebar() {
           })}
         </ul>
       </nav>
+
+      {/* Footer - Reset Demo Data (Admin Only) */}
+      {currentUser.role === 'admin' && (
+        <div className="p-4 border-t border-slate-800/50">
+          <button
+            onClick={() => setIsResetDialogOpen(true)}
+            className="text-[#4A4953] hover:text-[#F5F0EB] text-sm font-medium transition-colors w-full text-left"
+          >
+            Reset Demo Data
+          </button>
+        </div>
+      )}
+
+      {/* Reset Demo Dialog */}
+      <ResetDemoDialog
+        isOpen={isResetDialogOpen}
+        onClose={() => setIsResetDialogOpen(false)}
+        onConfirm={resetDemoData}
+      />
     </aside>
   );
 }
