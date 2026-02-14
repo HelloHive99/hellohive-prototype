@@ -116,14 +116,14 @@ export const users: User[] = [
 export const properties: Property[] = [
   {
     id: 'prop-1',
-    name: 'Broadcast Production Center',
-    address: '1200 Stadium Way, Los Angeles, CA 90012',
+    name: 'Citizens Bank Park',
+    address: '1 Citizens Bank Way, Philadelphia, PA 19148',
     spaces: [
       {
         id: 'space-1-1',
         propertyId: 'prop-1',
-        name: 'Sound Stage 3',
-        type: 'Production',
+        name: 'Press Box Level 3',
+        type: 'Media Operations',
         assets: [
           { id: 'asset-1-1-1', spaceId: 'space-1-1', name: 'HVAC Unit #RTU-04', type: 'HVAC', model: 'Carrier 50TC' },
           { id: 'asset-1-1-2', spaceId: 'space-1-1', name: 'Camera Rail A', type: 'Production Equipment' },
@@ -133,8 +133,8 @@ export const properties: Property[] = [
       {
         id: 'space-1-2',
         propertyId: 'prop-1',
-        name: 'Edit Suite 2',
-        type: 'Post Production',
+        name: 'Broadcast Booth A',
+        type: 'Broadcast',
         assets: [
           { id: 'asset-1-2-1', spaceId: 'space-1-2', name: 'UPS-12', type: 'Power', model: 'APC Smart-UPS 3000' },
           { id: 'asset-1-2-2', spaceId: 'space-1-2', name: 'HVAC Zone Controller', type: 'HVAC' },
@@ -143,18 +143,18 @@ export const properties: Property[] = [
       {
         id: 'space-1-3',
         propertyId: 'prop-1',
-        name: 'Control Room A',
-        type: 'Broadcast',
+        name: 'Visiting Team Clubhouse',
+        type: 'Facilities',
         assets: [
-          { id: 'asset-1-3-1', spaceId: 'space-1-3', name: 'Broadcast Router Matrix', type: 'AV Equipment' },
+          { id: 'asset-1-3-1', spaceId: 'space-1-3', name: 'HVAC Control System', type: 'HVAC' },
           { id: 'asset-1-3-2', spaceId: 'space-1-3', name: 'Environmental Monitor', type: 'HVAC' },
         ],
       },
       {
         id: 'space-1-4',
         propertyId: 'prop-1',
-        name: 'Server Room B',
-        type: 'IT Infrastructure',
+        name: 'Concourse Level 2',
+        type: 'Public Areas',
         assets: [
           { id: 'asset-1-4-1', spaceId: 'space-1-4', name: 'CRAC Unit #1', type: 'HVAC', model: 'Liebert DS' },
           { id: 'asset-1-4-2', spaceId: 'space-1-4', name: 'Fire Suppression Panel', type: 'Safety' },
@@ -174,13 +174,13 @@ export const properties: Property[] = [
   },
   {
     id: 'prop-2',
-    name: 'Stadium Complex',
-    address: '800 Stadium Plaza, Los Angeles, CA 90012',
+    name: 'BayCare Ballpark',
+    address: '601 Old Coachman Road, Clearwater, FL 33765',
     spaces: [
       {
         id: 'space-2-1',
         propertyId: 'prop-2',
-        name: 'Press Box Level 3',
+        name: 'Press Box',
         type: 'Media Operations',
         assets: [
           { id: 'asset-2-1-1', spaceId: 'space-2-1', name: 'HVAC Zone Panel 7B', type: 'HVAC' },
@@ -189,8 +189,8 @@ export const properties: Property[] = [
       {
         id: 'space-2-2',
         propertyId: 'prop-2',
-        name: 'Broadcast Booth A',
-        type: 'Broadcast',
+        name: 'Home Clubhouse',
+        type: 'Facilities',
         assets: [
           { id: 'asset-2-2-1', spaceId: 'space-2-2', name: 'Fiber Distribution Panel', type: 'Network' },
         ],
@@ -198,22 +198,22 @@ export const properties: Property[] = [
       {
         id: 'space-2-3',
         propertyId: 'prop-2',
-        name: 'Equipment Storage',
-        type: 'Storage',
+        name: 'Visiting Clubhouse',
+        type: 'Facilities',
         assets: [],
       },
     ],
   },
   {
     id: 'prop-3',
-    name: 'Training & Operations Facility',
-    address: '450 Practice Drive, Los Angeles, CA 90012',
+    name: 'Paul Owens Training Facility at Carpenter Complex',
+    address: '651 Old Coachman Road, Clearwater, FL 33765-2321',
     spaces: [
       {
         id: 'space-3-1',
         propertyId: 'prop-3',
-        name: 'Training Room 1',
-        type: 'Education',
+        name: 'Indoor Training Center',
+        type: 'Training',
         assets: [
           { id: 'asset-3-1-1', spaceId: 'space-3-1', name: 'Projector System', type: 'AV Equipment' },
         ],
@@ -225,6 +225,101 @@ export const properties: Property[] = [
         type: 'Operations',
         assets: [
           { id: 'asset-3-2-1', spaceId: 'space-3-2', name: 'Exhaust Fan System', type: 'HVAC' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'prop-4',
+    name: 'Phillies MLB Youth Academy - Ryan Howard Training Center',
+    address: '740 South 17th Street, Philadelphia, PA 19146',
+    spaces: [
+      {
+        id: 'space-4-1',
+        propertyId: 'prop-4',
+        name: 'Main Training Hall',
+        type: 'Training',
+        assets: [
+          { id: 'asset-4-1-1', spaceId: 'space-4-1', name: 'HVAC Unit #YA-01', type: 'HVAC', model: 'Trane XR16' },
+          { id: 'asset-4-1-2', spaceId: 'space-4-1', name: 'LED Scoreboard', type: 'Display' },
+        ],
+      },
+      {
+        id: 'space-4-2',
+        propertyId: 'prop-4',
+        name: 'Batting Cages',
+        type: 'Training',
+        assets: [
+          { id: 'asset-4-2-1', spaceId: 'space-4-2', name: 'Pitching Machine #3', type: 'Equipment' },
+        ],
+      },
+      {
+        id: 'space-4-3',
+        propertyId: 'prop-4',
+        name: 'Classroom A',
+        type: 'Education',
+        assets: [
+          { id: 'asset-4-3-1', spaceId: 'space-4-3', name: 'AV System', type: 'AV Equipment' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'prop-5',
+    name: 'Phillies Urban Youth Academy',
+    address: '1500 Pattison Avenue, Philadelphia, PA 19145',
+    spaces: [
+      {
+        id: 'space-5-1',
+        propertyId: 'prop-5',
+        name: 'Baseball Field 1',
+        type: 'Athletic Facility',
+        assets: [
+          { id: 'asset-5-1-1', spaceId: 'space-5-1', name: 'Field Lighting System', type: 'Electrical' },
+          { id: 'asset-5-1-2', spaceId: 'space-5-1', name: 'Irrigation Controller', type: 'Grounds' },
+        ],
+      },
+      {
+        id: 'space-5-2',
+        propertyId: 'prop-5',
+        name: 'Softball Field 2',
+        type: 'Athletic Facility',
+        assets: [
+          { id: 'asset-5-2-1', spaceId: 'space-5-2', name: 'Dugout Heater', type: 'HVAC' },
+        ],
+      },
+      {
+        id: 'space-5-3',
+        propertyId: 'prop-5',
+        name: 'Concession Stand',
+        type: 'Food Service',
+        assets: [
+          { id: 'asset-5-3-1', spaceId: 'space-5-3', name: 'Walk-in Cooler', type: 'Refrigeration' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'prop-6',
+    name: 'Penn Academy',
+    address: '9151 Academy Road, Philadelphia, PA 19114',
+    spaces: [
+      {
+        id: 'space-6-1',
+        propertyId: 'prop-6',
+        name: 'Training Field',
+        type: 'Athletic Facility',
+        assets: [
+          { id: 'asset-6-1-1', spaceId: 'space-6-1', name: 'Field Lighting Panel', type: 'Electrical' },
+        ],
+      },
+      {
+        id: 'space-6-2',
+        propertyId: 'prop-6',
+        name: 'Indoor Facility',
+        type: 'Training',
+        assets: [
+          { id: 'asset-6-2-1', spaceId: 'space-6-2', name: 'HVAC Rooftop Unit', type: 'HVAC', model: 'Lennox LGH' },
         ],
       },
     ],

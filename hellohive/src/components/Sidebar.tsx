@@ -11,6 +11,9 @@ import { ResetDemoDialog } from '@/components/ResetDemoDialog';
 const navItems = [
   { name: 'Dashboard', href: '/', icon: Home, permission: 'viewDashboard' as const },
   { name: 'Work Orders', href: '/work-orders', icon: ClipboardList, permission: 'viewDashboard' as const },
+  { name: 'Vendors', href: '/vendors', icon: Users, permission: 'viewDashboard' as const },
+  { name: 'Properties', href: '/properties', icon: Building2, permission: 'viewDashboard' as const },
+  { name: 'Assets', href: '/assets', icon: Package, permission: 'viewDashboard' as const },
 ];
 
 export function Sidebar() {
