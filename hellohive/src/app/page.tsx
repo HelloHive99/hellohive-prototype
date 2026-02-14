@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -66,7 +67,12 @@ export default function Dashboard() {
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-1">
-                      <span className="text-sm font-medium text-[#F5F0EB]">{wo.id}</span>
+                      <Link
+                        href={`/work-orders/${wo.id}`}
+                        className="text-sm font-medium text-[#F5C518] hover:text-[#F5C518]/80 transition-colors"
+                      >
+                        {wo.id}
+                      </Link>
                       <Badge variant={wo.status}>{wo.status}</Badge>
                     </div>
                     <p className="text-sm text-[#F5F0EB]">{wo.title}</p>
@@ -259,7 +265,13 @@ export default function Dashboard() {
               >
                 <div className="flex-1">
                   <p className="text-sm text-[#F5F0EB]">
-                    <span className="font-medium">{activity.workOrderId}</span> — {activity.message}
+                    <Link
+                      href={`/work-orders/${activity.workOrderId}`}
+                      className="font-medium text-[#F5C518] hover:text-[#F5C518]/80 transition-colors"
+                    >
+                      {activity.workOrderId}
+                    </Link>{' '}
+                    — {activity.message}
                   </p>
                   <p className="text-xs text-[#4A4953] mt-1">
                     {formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}

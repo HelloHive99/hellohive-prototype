@@ -23,6 +23,7 @@ interface UserContextType {
   getActivityFeed: () => ActivityFeedItem[];
   addWorkOrder: (wo: WorkOrder) => void;
   addActivityFeedItem: (item: ActivityFeedItem) => void;
+  updateWorkOrder: (id: string, updates: Partial<WorkOrder>) => void;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -101,6 +102,16 @@ export function UserProvider({ children }: { children: ReactNode }) {
     setActivityFeed((prev) => [item, ...prev]);
   };
 
+  const updateWorkOrder = (id: string, updates: Partial<WorkOrder>) => {
+    setWorkOrders((prev) =>
+      prev.map((wo) =>
+        wo.id === id
+          ? { ...wo, ...updates, updatedAt: new Date().toISOString() }
+          : wo
+      )
+    );
+  };
+
   return (
     <UserContext.Provider
       value={{
@@ -112,6 +123,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         getActivityFeed,
         addWorkOrder,
         addActivityFeedItem,
+        updateWorkOrder,
       }}
     >
       {children}
