@@ -1,14 +1,19 @@
 'use client';
 
+import { useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
-import { workOrders, activityFeed, users } from '@/data/seed-data';
+import { Button } from '@/components/ui/Button';
+import { NewServiceRequestModal } from '@/components/NewServiceRequestModal';
+import { users } from '@/data/seed-data';
 import { useUser } from '@/context/UserContext';
 import { formatDistanceToNow } from 'date-fns';
 
 export default function Dashboard() {
-  const { currentUser, getAccessibleWorkOrders, hasPermission } = useUser();
+  const { currentUser, getAccessibleWorkOrders, getActivityFeed, hasPermission } = useUser();
   const accessibleWorkOrders = getAccessibleWorkOrders();
+  const activityFeed = getActivityFeed();
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Compute metrics from accessible work orders
   const openCount = accessibleWorkOrders.filter((wo) => wo.status === 'open').length;
@@ -82,13 +87,22 @@ export default function Dashboard() {
   return (
     <div className="space-y-8">
       {/* Page Header */}
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-[#F5F0EB]">
-          Operations Dashboard
-        </h1>
-        <p className="text-sm text-[#4A4953] mt-1">
-          MLB Studio Campus facilities overview
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-[#F5F0EB]">
+            Operations Dashboard
+          </h1>
+          <p className="text-sm text-[#4A4953] mt-1">
+            MLB Studio Campus facilities overview
+          </p>
+        </div>
+
+        {/* New Service Request Button - Only visible to users with createWorkOrders permission */}
+        {hasPermission('createWorkOrders') && (
+          <Button onClick={() => setIsModalOpen(true)}>
+            New Service Request
+          </Button>
+        )}
       </div>
 
       {/* Metric Cards */}
@@ -256,6 +270,12 @@ export default function Dashboard() {
           })}
         </div>
       </Card>
+
+      {/* New Service Request Modal */}
+      <NewServiceRequestModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+      />
     </div>
   );
 }

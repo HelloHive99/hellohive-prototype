@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { User, users as seedUsers, workOrders } from '@/data/seed-data';
+import { User, users as seedUsers, workOrders as seedWorkOrders, activityFeed as seedActivityFeed, WorkOrder, ActivityFeedItem } from '@/data/seed-data';
 
 export type Permission =
   | 'viewDashboard'
@@ -18,7 +18,11 @@ interface UserContextType {
   currentUser: User;
   switchUser: (userId: string) => void;
   hasPermission: (permission: Permission) => boolean;
-  getAccessibleWorkOrders: () => typeof workOrders;
+  getAccessibleWorkOrders: () => WorkOrder[];
+  getAllWorkOrders: () => WorkOrder[];
+  getActivityFeed: () => ActivityFeedItem[];
+  addWorkOrder: (wo: WorkOrder) => void;
+  addActivityFeedItem: (item: ActivityFeedItem) => void;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -51,6 +55,8 @@ const rolePermissions: Record<string, Permission[]> = {
 
 export function UserProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User>(seedUsers[0]); // Default: Marcus Reyes (Admin)
+  const [workOrders, setWorkOrders] = useState<WorkOrder[]>(seedWorkOrders);
+  const [activityFeed, setActivityFeed] = useState<ActivityFeedItem[]>(seedActivityFeed);
 
   const switchUser = (userId: string) => {
     const user = seedUsers.find((u) => u.id === userId);
@@ -63,6 +69,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const userPermissions = rolePermissions[currentUser.role] || [];
     return userPermissions.includes(permission);
   };
+
+  const getAllWorkOrders = () => workOrders;
 
   const getAccessibleWorkOrders = () => {
     // Admin, Ops Coordinator, Viewer: see all work orders
@@ -83,6 +91,16 @@ export function UserProvider({ children }: { children: ReactNode }) {
     return [];
   };
 
+  const getActivityFeed = () => activityFeed;
+
+  const addWorkOrder = (wo: WorkOrder) => {
+    setWorkOrders((prev) => [wo, ...prev]);
+  };
+
+  const addActivityFeedItem = (item: ActivityFeedItem) => {
+    setActivityFeed((prev) => [item, ...prev]);
+  };
+
   return (
     <UserContext.Provider
       value={{
@@ -90,6 +108,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
         switchUser,
         hasPermission,
         getAccessibleWorkOrders,
+        getAllWorkOrders,
+        getActivityFeed,
+        addWorkOrder,
+        addActivityFeedItem,
       }}
     >
       {children}
