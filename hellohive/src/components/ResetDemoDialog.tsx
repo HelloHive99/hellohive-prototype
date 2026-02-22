@@ -32,16 +32,16 @@ export function ResetDemoDialog({ isOpen, onClose, onConfirm }: ResetDemoDialogP
           {/* Header */}
           <div className="flex items-start justify-between mb-6">
             <div>
-              <h2 className="text-2xl font-semibold tracking-tight text-[#F5F0EB]">
+              <h2 className="text-2xl font-semibold tracking-tight text-white">
                 Reset Demo Data
               </h2>
-              <p className="text-sm text-[#4A4953] mt-1">
+              <p className="text-sm text-gray-400 mt-1">
                 This action cannot be undone
               </p>
             </div>
             <button
               onClick={onClose}
-              className="text-[#4A4953] hover:text-[#F5F0EB] transition-colors"
+              className="text-gray-400 hover:text-white transition-colors"
             >
               <X className="w-6 h-6" />
             </button>
@@ -49,10 +49,10 @@ export function ResetDemoDialog({ isOpen, onClose, onConfirm }: ResetDemoDialogP
 
           {/* Message */}
           <div className="mb-6">
-            <p className="text-sm text-[#F5F0EB] leading-relaxed">
+            <p className="text-sm text-white leading-relaxed">
               Reset all demo data to defaults? This will remove any work orders created during this session and restore the original seed data.
             </p>
-            <p className="text-sm text-[#4A4953] mt-3">
+            <p className="text-sm text-gray-400 mt-3">
               All metrics, work orders, and activity feed entries will be restored to their initial state.
             </p>
           </div>
@@ -61,7 +61,7 @@ export function ResetDemoDialog({ isOpen, onClose, onConfirm }: ResetDemoDialogP
           <div className="flex items-center justify-end gap-3">
             <button
               onClick={onClose}
-              className="text-[#4A4953] hover:text-[#F5F0EB] text-sm font-medium transition-colors px-4 py-2"
+              className="text-gray-400 hover:text-white text-sm font-medium transition-colors px-4 py-2"
             >
               Cancel
             </button>

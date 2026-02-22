@@ -1,22 +1,21 @@
 'use client';
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { User, users as seedUsers, workOrders as seedWorkOrders, activityFeed as seedActivityFeed, WorkOrder, ActivityFeedItem } from '@/data/seed-data';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+
+const CONVERSATIONS_STORAGE_KEY = 'hellohive-conversations';
+import { User, users as seedUsers, workOrders as seedWorkOrders, activityFeed as seedActivityFeed, vendors as seedVendors, technicians as seedTechnicians, properties as seedProperties, conversations as seedConversations, WorkOrder, ActivityFeedItem, Vendor, Technician, Property, Asset, Conversation, Message } from '@/data/seed-data';
+import { rolePermissions, type Permission } from '@/lib/permissions';
+
+// Re-export Permission for backward compatibility with components importing from here
+export type { Permission } from '@/lib/permissions';
 
 // Store original seed data snapshots for demo reset
 const ORIGINAL_WORK_ORDERS = [...seedWorkOrders];
 const ORIGINAL_ACTIVITY_FEED = [...seedActivityFeed];
-
-export type Permission =
-  | 'viewDashboard'
-  | 'viewCostData'
-  | 'createWorkOrders'
-  | 'voiceIntake'
-  | 'dispatchVendors'
-  | 'updateWorkOrderStatus'
-  | 'viewAllWorkOrders'
-  | 'manageVendors'
-  | 'systemSettings';
+const ORIGINAL_VENDORS = [...seedVendors];
+const ORIGINAL_TECHNICIANS = [...seedTechnicians];
+const ORIGINAL_PROPERTIES = [...seedProperties];
+const ORIGINAL_CONVERSATIONS = [...seedConversations];
 
 interface UserContextType {
   currentUser: User;
@@ -29,42 +28,112 @@ interface UserContextType {
   addActivityFeedItem: (item: ActivityFeedItem) => void;
   updateWorkOrder: (id: string, updates: Partial<WorkOrder>) => void;
   resetDemoData: () => void;
+
+  // Vendor management
+  getAllVendors: () => Vendor[];
+  getVendorById: (id: string) => Vendor | undefined;
+  addVendor: (vendor: Vendor) => void;
+  updateVendor: (id: string, updates: Partial<Vendor>) => void;
+  deleteVendor: (id: string) => void;
+
+  // Technician management
+  getAllTechnicians: () => Technician[];
+  getTechniciansByVendor: (vendorId: string) => Technician[];
+  getTechnicianById: (id: string) => Technician | undefined;
+  addTechnician: (tech: Technician) => void;
+  updateTechnician: (id: string, updates: Partial<Technician>) => void;
+  deleteTechnician: (id: string) => void;
+
+  // Property management
+  getAllProperties: () => Property[];
+  getPropertyById: (id: string) => Property | undefined;
+  addProperty: (property: Property) => void;
+  updateProperty: (id: string, updates: Partial<Property>) => void;
+  deleteProperty: (id: string) => void;
+
+  // Asset management
+  getAllAssets: () => Asset[];
+  getAssetById: (id: string) => Asset | undefined;
+  addAsset: (asset: Asset, spaceId: string) => void;
+  updateAsset: (id: string, updates: Partial<Asset>) => void;
+  retireAsset: (id: string, reason?: string) => void;
+  deleteAsset: (id: string) => void;
+  bulkUpdateAssets: (ids: string[], updates: Partial<Asset>) => void;
+  bulkRetireAssets: (ids: string[], reason?: string) => void;
+
+  // Vendor-Admin self-service technician management
+  addVendorTechnician: (tech: Technician) => void;
+  updateVendorTechnician: (techId: string, updates: Partial<Technician>) => void;
+  removeVendorTechnician: (techId: string) => void;
+
+  // Messaging
+  conversations: Conversation[];
+  getConversationByWorkOrder: (woId: string) => Conversation | undefined;
+  getDirectConversations: () => Conversation[];
+  getUnreadCount: (conversationId: string) => number;
+  getTotalUnreadCount: () => number;
+  sendMessage: (conversationId: string, body: string) => void;
+  markConversationRead: (conversationId: string) => void;
+  createWorkOrderConversation: (woId: string, participantIds: string[], participantNames: string[]) => Conversation;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
-// Permission Matrix from Build Plan
-const rolePermissions: Record<string, Permission[]> = {
-  admin: [
-    'viewDashboard',
-    'viewCostData',
-    'createWorkOrders',
-    'voiceIntake',
-    'dispatchVendors',
-    'updateWorkOrderStatus',
-    'viewAllWorkOrders',
-    'manageVendors',
-    'systemSettings',
-  ],
-  'ops-coordinator': [
-    'viewDashboard',
-    'createWorkOrders',
-    'voiceIntake',
-    'dispatchVendors',
-    'updateWorkOrderStatus',
-    'viewAllWorkOrders',
-  ],
-  technician: ['updateWorkOrderStatus'],
-  viewer: ['viewDashboard', 'viewCostData', 'viewAllWorkOrders'],
-  vendor: ['updateWorkOrderStatus'],
-};
-
-export function UserProvider({ children }: { children: ReactNode }) {
-  const [currentUser, setCurrentUser] = useState<User>(seedUsers[0]); // Default: Marcus Reyes (Admin)
+export function UserProvider({
+  children,
+  initialUser,
+}: {
+  children: ReactNode;
+  initialUser?: User;
+}) {
+  const [currentUser, setCurrentUser] = useState<User>(initialUser ?? seedUsers[0]);
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>(seedWorkOrders);
   const [activityFeed, setActivityFeed] = useState<ActivityFeedItem[]>(seedActivityFeed);
+  const [vendors, setVendors] = useState<Vendor[]>(seedVendors);
+  const [technicians, setTechnicians] = useState<Technician[]>(seedTechnicians);
+  const [properties, setProperties] = useState<Property[]>(seedProperties);
+  const [conversations, setConversations] = useState<Conversation[]>(seedConversations);
+
+  // Hydrate conversations from localStorage on mount (survives login/logout cycles)
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(CONVERSATIONS_STORAGE_KEY);
+      if (stored) setConversations(JSON.parse(stored) as Conversation[]);
+    } catch {
+      // ignore parse errors — fall back to seed data
+    }
+  }, []);
+
+  // Persist conversations to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem(CONVERSATIONS_STORAGE_KEY, JSON.stringify(conversations));
+    } catch {
+      // ignore storage errors (e.g. private browsing quota)
+    }
+  }, [conversations]);
+
+  // Real-time cross-tab sync: when another tab writes to localStorage, update this tab's state.
+  // The 'storage' event fires in every tab EXCEPT the one that made the change.
+  useEffect(() => {
+    const handleStorageEvent = (e: StorageEvent) => {
+      if (e.key === CONVERSATIONS_STORAGE_KEY && e.newValue) {
+        try {
+          setConversations(JSON.parse(e.newValue) as Conversation[]);
+        } catch {
+          // ignore
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorageEvent);
+    return () => window.removeEventListener('storage', handleStorageEvent);
+  }, []);
+
+  const devPersonaSwitcherEnabled =
+    process.env.NEXT_PUBLIC_DEV_PERSONA_SWITCHER === 'true';
 
   const switchUser = (userId: string) => {
+    if (!devPersonaSwitcherEnabled) return; // no-op in production
     const user = seedUsers.find((u) => u.id === userId);
     if (user) {
       setCurrentUser(user);
@@ -72,7 +141,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   };
 
   const hasPermission = (permission: Permission): boolean => {
-    const userPermissions = rolePermissions[currentUser.role] || [];
+    const userPermissions = rolePermissions[currentUser.role as keyof typeof rolePermissions] || [];
     return userPermissions.includes(permission);
   };
 
@@ -84,14 +153,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
       return workOrders;
     }
 
-    // Technician: see only assigned work orders
-    if (currentUser.role === 'technician') {
+    // Vendor-Tech: see only assigned work orders
+    if (currentUser.role === 'Vendor-Tech') {
       return workOrders.filter((wo) => wo.assignedTechnicianId === currentUser.id);
     }
 
-    // Vendor: see only their assigned work orders
-    if (currentUser.role === 'vendor') {
-      return workOrders.filter((wo) => wo.assignedVendorId === currentUser.id);
+    // Vendor-Admin: see work orders assigned to their company
+    if (currentUser.role === 'Vendor-Admin') {
+      const vendorIds = currentUser.associatedVendorIds ?? [];
+      return workOrders.filter((wo) => vendorIds.includes(wo.assignedVendorId ?? ''));
     }
 
     return [];
@@ -109,18 +179,332 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   const updateWorkOrder = (id: string, updates: Partial<WorkOrder>) => {
     setWorkOrders((prev) =>
+      prev.map((wo) => {
+        if (wo.id !== id) return wo;
+        const enriched = { ...updates };
+        if (updates.status === 'dispatched' && !wo.dispatchedAt) {
+          enriched.dispatchedAt = new Date().toISOString();
+        }
+        if (updates.status === 'in-progress' && !wo.startedAt) {
+          enriched.startedAt = new Date().toISOString();
+        }
+        if (updates.status === 'completed' && !wo.completedAt) {
+          enriched.completedAt = new Date().toISOString();
+        }
+        return { ...wo, ...enriched, updatedAt: new Date().toISOString() };
+      })
+    );
+  };
+
+  // Vendor management methods
+  const getAllVendors = () => vendors;
+
+  const getVendorById = (id: string) => {
+    return vendors.find((v) => v.id === id);
+  };
+
+  const addVendor = (vendor: Vendor) => {
+    if (!hasPermission('manageVendors')) {
+      console.error('Permission denied: manageVendors required');
+      return;
+    }
+    setVendors((prev) => [...prev, vendor]);
+  };
+
+  const updateVendor = (id: string, updates: Partial<Vendor>) => {
+    if (!hasPermission('manageVendors')) {
+      console.error('Permission denied: manageVendors required');
+      return;
+    }
+    setVendors((prev) =>
+      prev.map((v) => (v.id === id ? { ...v, ...updates } : v))
+    );
+  };
+
+  const deleteVendor = (id: string) => {
+    if (!hasPermission('manageVendors')) {
+      console.error('Permission denied: manageVendors required');
+      return;
+    }
+    setVendors((prev) => prev.filter((v) => v.id !== id));
+  };
+
+  // Technician management methods
+  const getAllTechnicians = () => technicians;
+
+  const getTechniciansByVendor = (vendorId: string) => {
+    return technicians.filter((t) => t.vendorId === vendorId && t.isActive);
+  };
+
+  const getTechnicianById = (id: string) => {
+    return technicians.find((t) => t.id === id);
+  };
+
+  const addTechnician = (tech: Technician) => {
+    if (!hasPermission('manageVendors')) {
+      console.error('Permission denied: manageVendors required');
+      return;
+    }
+    setTechnicians((prev) => [...prev, tech]);
+  };
+
+  const updateTechnician = (id: string, updates: Partial<Technician>) => {
+    if (!hasPermission('manageVendors')) {
+      console.error('Permission denied: manageVendors required');
+      return;
+    }
+    setTechnicians((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, ...updates } : t))
+    );
+  };
+
+  const deleteTechnician = (id: string) => {
+    if (!hasPermission('manageVendors')) {
+      console.error('Permission denied: manageVendors required');
+      return;
+    }
+    setTechnicians((prev) => prev.filter((t) => t.id !== id));
+  };
+
+  // Property management methods
+  const getAllProperties = () => properties;
+
+  const getPropertyById = (id: string) => {
+    return properties.find((p) => p.id === id);
+  };
+
+  const addProperty = (property: Property) => {
+    if (!hasPermission('manageProperties')) {
+      console.error('Permission denied: manageProperties required');
+      return;
+    }
+    setProperties((prev) => [...prev, property]);
+  };
+
+  const updateProperty = (id: string, updates: Partial<Property>) => {
+    if (!hasPermission('manageProperties')) {
+      console.error('Permission denied: manageProperties required');
+      return;
+    }
+    setProperties((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, ...updates } : p))
+    );
+  };
+
+  const deleteProperty = (id: string) => {
+    if (!hasPermission('manageProperties')) {
+      console.error('Permission denied: manageProperties required');
+      return;
+    }
+    setProperties((prev) => prev.filter((p) => p.id !== id));
+  };
+
+  // Asset management methods
+  const getAllAssets = (): Asset[] => {
+    return properties.flatMap(p => p.spaces.flatMap(s => s.assets));
+  };
+
+  const getAssetById = (id: string): Asset | undefined => {
+    return getAllAssets().find(a => a.id === id);
+  };
+
+  const addAsset = (asset: Asset, spaceId: string) => {
+    if (!hasPermission('manageAssets')) {
+      console.error('Permission denied: manageAssets required');
+      return;
+    }
+    setProperties(prev => prev.map(p => ({
+      ...p,
+      spaces: p.spaces.map(s =>
+        s.id === spaceId
+          ? { ...s, assets: [...s.assets, asset] }
+          : s
+      )
+    })));
+  };
+
+  const updateAsset = (id: string, updates: Partial<Asset>) => {
+    if (!hasPermission('manageAssets')) {
+      console.error('Permission denied: manageAssets required');
+      return;
+    }
+    setProperties(prev => prev.map(p => ({
+      ...p,
+      spaces: p.spaces.map(s => ({
+        ...s,
+        assets: s.assets.map(a =>
+          a.id === id ? { ...a, ...updates } : a
+        )
+      }))
+    })));
+  };
+
+  const retireAsset = (id: string, reason?: string) => {
+    if (!hasPermission('manageAssets') || currentUser.role === 'Vendor-Tech') {
+      console.error('Permission denied');
+      return;
+    }
+    updateAsset(id, {
+      isRetired: true,
+      retiredAt: new Date().toISOString(),
+      retiredBy: currentUser.id,
+      retireReason: reason,
+    });
+  };
+
+  const deleteAsset = (id: string) => {
+    if (currentUser.role !== 'Team-Admin') {
+      console.error('Permission denied: Team-Admin required');
+      return;
+    }
+    setProperties(prev => prev.map(p => ({
+      ...p,
+      spaces: p.spaces.map(s => ({
+        ...s,
+        assets: s.assets.filter(a => a.id !== id)
+      }))
+    })));
+  };
+
+  const bulkUpdateAssets = (ids: string[], updates: Partial<Asset>) => {
+    if (!hasPermission('manageAssets')) {
+      console.error('Permission denied: manageAssets required');
+      return;
+    }
+    ids.forEach(id => updateAsset(id, updates));
+  };
+
+  const bulkRetireAssets = (ids: string[], reason?: string) => {
+    if (!hasPermission('manageAssets') || currentUser.role === 'Vendor-Tech') {
+      console.error('Permission denied');
+      return;
+    }
+    ids.forEach(id => retireAsset(id, reason));
+  };
+
+  // Vendor-Admin self-service: manage their own company's technicians
+  const addVendorTechnician = (tech: Technician) => {
+    if (currentUser.role !== 'Vendor-Admin') return;
+    setTechnicians((prev) => [...prev, tech]);
+  };
+
+  const updateVendorTechnician = (techId: string, updates: Partial<Technician>) => {
+    if (currentUser.role !== 'Vendor-Admin') return;
+    setTechnicians((prev) =>
+      prev.map((t) => (t.id === techId ? { ...t, ...updates } : t))
+    );
+  };
+
+  const removeVendorTechnician = (techId: string) => {
+    if (currentUser.role !== 'Vendor-Admin') return;
+    // Clear technician from any assigned work orders
+    setWorkOrders((prev) =>
       prev.map((wo) =>
-        wo.id === id
-          ? { ...wo, ...updates, updatedAt: new Date().toISOString() }
+        wo.assignedTechnicianId === techId
+          ? { ...wo, assignedTechnicianId: undefined }
           : wo
       )
     );
+    setTechnicians((prev) => prev.filter((t) => t.id !== techId));
+  };
+
+  // Messaging methods
+  const getConversationByWorkOrder = (woId: string): Conversation | undefined => {
+    return conversations.find((c) => c.type === 'work-order' && c.workOrderId === woId);
+  };
+
+  const getDirectConversations = (): Conversation[] => {
+    return conversations.filter((c) => c.type === 'direct');
+  };
+
+  const getUnreadCount = (conversationId: string): number => {
+    const conv = conversations.find((c) => c.id === conversationId);
+    if (!conv) return 0;
+    return conv.messages.filter((m) => !m.readBy.includes(currentUser.id)).length;
+  };
+
+  const getTotalUnreadCount = (): number => {
+    return conversations.reduce((total, conv) => {
+      return total + conv.messages.filter((m) => !m.readBy.includes(currentUser.id)).length;
+    }, 0);
+  };
+
+  const sendMessage = (conversationId: string, body: string): void => {
+    const senderType: Message['senderType'] =
+      currentUser.role === 'Vendor-Admin'
+        ? 'vendor-admin'
+        : currentUser.role === 'Vendor-Tech'
+        ? 'technician'
+        : 'team';
+
+    const newMessage: Message = {
+      id: `msg-${Date.now()}`,
+      conversationId,
+      senderId: currentUser.id,
+      senderName: currentUser.name,
+      senderType,
+      body,
+      timestamp: new Date().toISOString(),
+      readBy: [currentUser.id],
+    };
+
+    setConversations((prev) =>
+      prev.map((conv) =>
+        conv.id === conversationId
+          ? {
+              ...conv,
+              messages: [...conv.messages, newMessage],
+              lastMessageAt: newMessage.timestamp,
+              lastMessagePreview: body.length > 60 ? body.slice(0, 60) + '…' : body,
+            }
+          : conv
+      )
+    );
+  };
+
+  const markConversationRead = (conversationId: string): void => {
+    setConversations((prev) =>
+      prev.map((conv) =>
+        conv.id === conversationId
+          ? {
+              ...conv,
+              messages: conv.messages.map((m) =>
+                m.readBy.includes(currentUser.id)
+                  ? m
+                  : { ...m, readBy: [...m.readBy, currentUser.id] }
+              ),
+            }
+          : conv
+      )
+    );
+  };
+
+  const createWorkOrderConversation = (
+    woId: string,
+    participantIds: string[],
+    participantNames: string[]
+  ): Conversation => {
+    const newConv: Conversation = {
+      id: `conv-wo-${woId}-${Date.now()}`,
+      type: 'work-order',
+      workOrderId: woId,
+      participantIds,
+      participantNames,
+      messages: [],
+    };
+    setConversations((prev) => [...prev, newConv]);
+    return newConv;
   };
 
   const resetDemoData = () => {
     setWorkOrders([...ORIGINAL_WORK_ORDERS]);
     setActivityFeed([...ORIGINAL_ACTIVITY_FEED]);
-    setCurrentUser(seedUsers[0]); // Reset to Marcus Reyes (Admin)
+    setVendors([...ORIGINAL_VENDORS]);
+    setTechnicians([...ORIGINAL_TECHNICIANS]);
+    setProperties([...ORIGINAL_PROPERTIES]);
+    setConversations([...ORIGINAL_CONVERSATIONS]);
+    setCurrentUser(initialUser ?? seedUsers[0]);
+    try { localStorage.removeItem(CONVERSATIONS_STORAGE_KEY); } catch { /* ignore */ }
   };
 
   return (
@@ -136,6 +520,41 @@ export function UserProvider({ children }: { children: ReactNode }) {
         addActivityFeedItem,
         updateWorkOrder,
         resetDemoData,
+        getAllVendors,
+        getVendorById,
+        addVendor,
+        updateVendor,
+        deleteVendor,
+        getAllTechnicians,
+        getTechniciansByVendor,
+        getTechnicianById,
+        addTechnician,
+        updateTechnician,
+        deleteTechnician,
+        getAllProperties,
+        getPropertyById,
+        addProperty,
+        updateProperty,
+        deleteProperty,
+        getAllAssets,
+        getAssetById,
+        addAsset,
+        updateAsset,
+        retireAsset,
+        deleteAsset,
+        bulkUpdateAssets,
+        bulkRetireAssets,
+        addVendorTechnician,
+        updateVendorTechnician,
+        removeVendorTechnician,
+        conversations,
+        getConversationByWorkOrder,
+        getDirectConversations,
+        getUnreadCount,
+        getTotalUnreadCount,
+        sendMessage,
+        markConversationRead,
+        createWorkOrderConversation,
       }}
     >
       {children}

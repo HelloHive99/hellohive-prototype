@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { UserProvider } from "@/context/UserContext";
-import { Sidebar } from "@/components/Sidebar";
-import { Header } from "@/components/Header";
+import { SessionProvider } from "@/components/SessionProvider";
 
 export const metadata: Metadata = {
   title: "HelloHive | Facilities Operations Platform",
@@ -17,23 +15,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased">
-        <UserProvider>
-          <div className="flex min-h-screen">
-            {/* Sidebar */}
-            <Sidebar />
-
-            {/* Main Content Area */}
-            <div className="flex-1 flex flex-col">
-              {/* Header */}
-              <Header />
-
-              {/* Canvas */}
-              <main className="flex-1 bg-[#150F16] p-8">
-                {children}
-              </main>
-            </div>
-          </div>
-        </UserProvider>
+        <SessionProvider>
+          {children}
+        </SessionProvider>
       </body>
     </html>
   );

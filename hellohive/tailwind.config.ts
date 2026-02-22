@@ -9,16 +9,18 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Visual Design Playbook - Locked Color Tokens
-        'plum-900': '#150F16',      // Main app canvas/background
-        'plum-800': '#1E1520',      // Global sidebar, top navigation
-        'plum-700': '#2C1F2F',      // Cards, panels, modals
-        'bumble': '#F5C518',        // Primary CTA buttons, active nav states
-        'amber-warn': '#D4820A',    // System warnings, pending states
-        'alabaster': '#F5F0EB',     // Primary text, data values
-        'slate-sec': '#4A4953',     // Secondary text, table headers, timestamps
-        'success': '#2ECC71',       // Completed states
-        'error': '#E74C3C',         // Critical alerts, overdue items
+        // DEPRECATED - Migrated to Tailwind neutral/gray scale (Feb 2026)
+        // 'plum-900': '#150F16',  // → bg-neutral-950
+        // 'plum-800': '#1E1520',  // → bg-neutral-900 or bg-gray-800
+        // 'plum-700': '#2C1F2F',  // → bg-neutral-800 or bg-gray-700
+        // 'alabaster': '#F5F0EB', // → text-white
+        // 'slate-sec': '#4A4953', // → text-gray-400 or border-gray-700
+
+        // Keep accent colors
+        'bumble': '#F5C518',        // Primary CTA, focus rings
+        'amber-warn': '#D4820A',    // Warnings
+        'success': '#2ECC71',       // Success states
+        'error': '#E74C3C',         // Error states
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],

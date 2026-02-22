@@ -11,27 +11,27 @@ interface BadgeProps {
 
 const variantStyles: Record<BadgeVariant, { container: string; dot: string }> = {
   completed: {
-    container: 'bg-[#2ECC71]/10 text-[#2ECC71] border-[#2ECC71]/20',
-    dot: 'bg-[#2ECC71]',
+    container: 'bg-[#10B981]/20 text-[#10B981] border-[#10B981]/30',
+    dot: 'bg-[#10B981]',
   },
   'in-progress': {
-    container: 'bg-[#F5C518]/10 text-[#F5C518] border-[#F5C518]/20',
-    dot: 'bg-[#F5C518]',
+    container: 'bg-[#F59E0B]/20 text-[#F59E0B] border-[#F59E0B]/30',
+    dot: 'bg-[#F59E0B]',
   },
   open: {
-    container: 'bg-[#F5F0EB]/10 text-[#F5F0EB] border-[#F5F0EB]/20',
-    dot: 'bg-[#F5F0EB]',
+    container: 'bg-white/20 text-white border-white/30',
+    dot: 'bg-white',
   },
   overdue: {
-    container: 'bg-[#E74C3C]/10 text-[#E74C3C] border-[#E74C3C]/20',
-    dot: 'bg-[#E74C3C]',
+    container: 'bg-[#EF4444]/20 text-[#EF4444] border-[#EF4444]/30',
+    dot: 'bg-[#EF4444]',
   },
   pending: {
-    container: 'bg-[#D4820A]/10 text-[#D4820A] border-[#D4820A]/20',
-    dot: 'bg-[#D4820A]',
+    container: 'bg-[#F59E0B]/20 text-[#F59E0B] border-[#F59E0B]/30',
+    dot: 'bg-[#F59E0B]',
   },
   dispatched: {
-    container: 'bg-[#3B82F6]/10 text-[#3B82F6] border-[#3B82F6]/20',
+    container: 'bg-[#3B82F6]/20 text-[#3B82F6] border-[#3B82F6]/30',
     dot: 'bg-[#3B82F6]',
   },
 };
