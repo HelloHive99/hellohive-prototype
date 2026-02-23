@@ -1,8 +1,10 @@
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
-import type { Asset, WorkOrder, WorkOrderStatus, WorkOrderPriority } from '@/data/seed-data';
+import type { Asset, WorkOrder, WorkOrderPriority } from '@/data/seed-data';
 import { formatDistanceToNow, format } from 'date-fns';
 import Link from 'next/link';
+import { getStatusBadgeVariant, getStatusDisplayLabel } from '@/lib/workorder-types';
+import { isWorkOrderOverdue } from '@/lib/workorder-compute';
 
 interface AssetWorkOrdersSectionProps {
   asset: Asset;
@@ -11,22 +13,8 @@ interface AssetWorkOrdersSectionProps {
 
 export function AssetWorkOrdersSection({ asset, workOrders }: AssetWorkOrdersSectionProps) {
   const totalWorkOrders = workOrders.length;
-  const openWorkOrders = workOrders.filter(wo => ['open', 'in-progress', 'dispatched'].includes(wo.status)).length;
-  const overdueWorkOrders = workOrders.filter(wo => wo.status === 'overdue').length;
-
-  const statusBadgeVariant = (status: WorkOrderStatus) => {
-    switch (status) {
-      case 'completed':
-        return 'completed';
-      case 'in-progress':
-      case 'dispatched':
-        return 'in-progress';
-      case 'overdue':
-        return 'overdue';
-      default:
-        return 'open';
-    }
-  };
+  const openWorkOrders = workOrders.filter(wo => ['open', 'in-progress', 'dispatched', 'pending-approval'].includes(wo.status)).length;
+  const overdueWorkOrders = workOrders.filter(wo => isWorkOrderOverdue(wo)).length;
 
   const priorityBadgeVariant = (priority: WorkOrderPriority) => {
     switch (priority) {
@@ -115,8 +103,8 @@ export function AssetWorkOrdersSection({ asset, workOrders }: AssetWorkOrdersSec
                     <p className="text-sm text-white">{wo.title}</p>
                   </td>
                   <td className="py-3">
-                    <Badge variant={statusBadgeVariant(wo.status)} className="capitalize">
-                      {wo.status}
+                    <Badge variant={getStatusBadgeVariant(wo.status)} className="capitalize">
+                      {getStatusDisplayLabel(wo.status)}
                     </Badge>
                   </td>
                   <td className="py-3">

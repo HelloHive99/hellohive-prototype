@@ -25,7 +25,7 @@ export function isLast7Days(dateString: string): boolean {
  */
 export function isOverdue(dueDate: string | undefined, status: string): boolean {
   if (!dueDate) return false;
-  if (status === 'completed') return false;
+  if (status === 'closed' || status === 'cancelled' || status === 'completed') return false;
   return isBefore(new Date(dueDate), new Date());
 }
 
@@ -125,7 +125,8 @@ const PRIORITY_SLA_HOURS: Record<string, number> = {
  * Uses dueDate if present; otherwise derives window from priority + dispatchedAt.
  */
 export function getSlaRisk(workOrder: WorkOrder): SlaRisk {
-  if (workOrder.status === 'completed' || workOrder.status === 'open' || workOrder.status === 'overdue') {
+  if (workOrder.status === 'closed' || workOrder.status === 'cancelled' ||
+      workOrder.status === 'open') {
     return null;
   }
 

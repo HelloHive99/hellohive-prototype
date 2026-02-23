@@ -1,7 +1,7 @@
 'use client';
 
-import { AlertTriangle, XCircle, Clock, UserX } from 'lucide-react';
-import { getSlaRisk } from '@/lib/date-utils';
+import { AlertTriangle, XCircle, Clock, UserX, ShieldCheck } from 'lucide-react';
+import { computeSlaRisk, isWorkOrderOverdue } from '@/lib/workorder-compute';
 import type { WorkOrder } from '@/data/seed-data';
 
 interface Props {
@@ -12,15 +12,16 @@ interface Props {
 }
 
 export function VendorActionRequiredStrip({ workOrders, activePill, onPillClick, compact }: Props) {
-  const approaching = workOrders.filter((wo) => getSlaRisk(wo) === 'approaching').length;
-  const breached    = workOrders.filter((wo) => getSlaRisk(wo) === 'breached').length;
-  const overdue     = workOrders.filter((wo) => wo.status === 'overdue').length;
+  const approaching = workOrders.filter((wo) => computeSlaRisk(wo) === 'approaching').length;
+  const breached    = workOrders.filter((wo) => computeSlaRisk(wo) === 'breached').length;
+  const overdue     = workOrders.filter((wo) => isWorkOrderOverdue(wo)).length;
+  const pendingApproval = workOrders.filter((wo) => wo.status === 'pending-approval').length;
   const notStarted  = workOrders.filter((wo) => wo.status === 'dispatched' && !wo.startedAt).length;
   const unassigned  = workOrders.filter((wo) =>
     ['dispatched', 'in-progress'].includes(wo.status) && !wo.assignedTechnicianId
   ).length;
 
-  const hasAny = approaching > 0 || breached > 0 || overdue > 0 || notStarted > 0 || unassigned > 0;
+  const hasAny = approaching > 0 || breached > 0 || overdue > 0 || notStarted > 0 || unassigned > 0 || pendingApproval > 0;
 
   if (!hasAny && !activePill) return null;
 
@@ -64,6 +65,9 @@ export function VendorActionRequiredStrip({ workOrders, activePill, onPillClick,
         'bg-orange-500/10 text-orange-400 border-orange-500/20',
         'bg-orange-500/20 text-orange-300 border-orange-500/40')}
       {pill('unassigned', unassigned, 'Unassigned', UserX,
+        'bg-gray-500/10 text-gray-400 border-gray-500/20',
+        'bg-gray-500/20 text-gray-300 border-gray-500/40')}
+      {pill('pending-approval', pendingApproval, 'Pending Approval', ShieldCheck,
         'bg-purple-500/10 text-purple-400 border-purple-500/20',
         'bg-purple-500/20 text-purple-300 border-purple-500/40')}
       {activePill && (

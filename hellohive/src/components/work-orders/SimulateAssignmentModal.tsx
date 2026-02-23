@@ -19,7 +19,7 @@ export function SimulateAssignmentModal({
   onClose,
   workOrder,
 }: SimulateAssignmentModalProps) {
-  const { getTechniciansByVendor, getVendorById, updateWorkOrder, addActivityFeedItem, currentUser } = useUser();
+  const { getTechniciansByVendor, getVendorById, updateWorkOrder, addActivityFeedItem, appendWorkOrderEvent, currentUser } = useUser();
 
   const [selectedTechnicianId, setSelectedTechnicianId] = useState('');
   const [eta, setEta] = useState('');
@@ -70,9 +70,15 @@ export function SimulateAssignmentModal({
 
     updateWorkOrder(workOrder.id, updates);
 
-    // Add activity feed entry
+    // Log TECH_ASSIGNED event and activity feed entry
     const selectedTech = availableTechnicians.find((t) => t.id === selectedTechnicianId);
     if (selectedTech) {
+      appendWorkOrderEvent(workOrder.id, 'TECH_ASSIGNED', `Assigned: ${selectedTech.fullName}`, {
+        technicianId: selectedTechnicianId,
+        technicianName: selectedTech.fullName,
+        ...(eta ? { eta: new Date(eta).toISOString() } : {}),
+      });
+
       const activityId = `activity-${Date.now()}`;
       addActivityFeedItem({
         id: activityId,

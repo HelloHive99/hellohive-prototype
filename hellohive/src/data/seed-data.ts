@@ -185,7 +185,17 @@ export interface Technician {
   dispatchZone?: string;
 }
 
-export type WorkOrderStatus = 'open' | 'in-progress' | 'completed' | 'overdue' | 'dispatched';
+import type {
+  WorkflowState,
+  WorkOrderEvent,
+  Blocker,
+  ReturnVisit,
+  ScopeChange,
+  PaymentInfo,
+  DueAtSource,
+} from '@/lib/workorder-types';
+
+export type WorkOrderStatus = WorkflowState;
 export type WorkOrderPriority = 'low' | 'medium' | 'high' | 'urgent';
 
 export interface WorkOrder {
@@ -195,20 +205,31 @@ export interface WorkOrder {
   propertyId: string;
   spaceId: string;
   assetId?: string;
-  status: WorkOrderStatus;
+  status: WorkflowState;
   priority: WorkOrderPriority;
   category: VendorCategory;
   assignedVendorId?: string;
+  selectedVendorId?: string;       // v3.1: who was chosen during dispatch
   createdBy: string;
   createdAt: string;
   updatedAt: string;
   completedAt?: string;
-  dueDate?: string;  // ISO timestamp for deadline
-  cost?: number;
-  assignedTechnicianId?: string;  // Now references Technician.id
-  vendorReportedEta?: string;     // ISO timestamp
-  dispatchedAt?: string;          // ISO — set when status transitions to 'dispatched'
-  startedAt?: string;             // ISO — set when status transitions to 'in-progress'
+  dueDate?: string;                // ISO timestamp for deadline
+  dueAtSource?: DueAtSource;       // v3.1: 'computed' | 'manual'
+  cost?: number;                   // legacy cost field
+  estimatedCost?: number;          // v3.1: initial estimate
+  actualCost?: number;             // v3.1: reported by tech at completion
+  assignedTechnicianId?: string;   // References Technician.id
+  vendorReportedEta?: string;      // ISO timestamp
+  dispatchedAt?: string;           // ISO — set when dispatched
+  startedAt?: string;              // ISO — set when in-progress
+  // v3.1 additions
+  events: WorkOrderEvent[];
+  blocker?: Blocker;
+  returnVisit?: ReturnVisit;
+  scopeChanges: ScopeChange[];
+  payment?: PaymentInfo;
+  costApprovedBy?: { role: string; id: string; at: string };
 }
 
 export interface ActivityFeedItem {
@@ -2726,7 +2747,11 @@ export const technicians: Technician[] = [
 ];
 
 // === WORK ORDERS ===
-export const workOrders: WorkOrder[] = [
+import { buildSyntheticEvents } from '@/lib/workorder-events';
+
+// Legacy seed data — statuses use old values, migrated below.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const rawWorkOrders: any[] = [
   {
     id: 'WO-2026-0047',
     title: 'AC leaking in Sound Stage 3',
@@ -3072,6 +3097,49 @@ export const workOrders: WorkOrder[] = [
     cost: 920,
   },
 ];
+
+// === MIGRATE SEED WORK ORDERS TO v3.1 ===
+
+function migrateSeedWorkOrders(wos: typeof rawWorkOrders): WorkOrder[] {
+  return wos.map((wo) => {
+    // Map legacy statuses to WorkflowState
+    let newStatus: WorkflowState;
+    switch (wo.status) {
+      case 'overdue':
+        newStatus = 'open'; // overdue is now computed from dueDate
+        break;
+      case 'completed':
+        newStatus = 'closed'; // completed → closed (approval chain)
+        break;
+      default:
+        newStatus = wo.status as WorkflowState;
+    }
+
+    return {
+      ...wo,
+      status: newStatus,
+      selectedVendorId: wo.assignedVendorId,
+      dueAtSource: wo.dueDate ? 'manual' : 'computed',
+      estimatedCost: wo.cost,
+      actualCost: wo.status === 'completed' ? wo.cost : undefined,
+      events: buildSyntheticEvents(wo),
+      scopeChanges: [],
+      payment: wo.status === 'completed' && wo.cost
+        ? {
+            status: 'triggered' as const,
+            triggeredAt: wo.completedAt ?? wo.updatedAt,
+            amount: wo.cost,
+            vendorId: wo.assignedVendorId ?? '',
+          }
+        : undefined,
+      costApprovedBy: wo.status === 'completed'
+        ? { role: 'Team-Admin', id: wo.createdBy, at: wo.completedAt ?? wo.updatedAt }
+        : undefined,
+    } as WorkOrder;
+  });
+}
+
+export const workOrders: WorkOrder[] = migrateSeedWorkOrders(rawWorkOrders);
 
 // === ACTIVITY FEED ===
 export const activityFeed: ActivityFeedItem[] = [

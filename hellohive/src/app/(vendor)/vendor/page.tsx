@@ -10,8 +10,12 @@ import { VendorTechnicianSection } from '@/components/vendors/VendorTechnicianSe
 import { VendorInboxDrawer } from '@/components/vendors/VendorInboxDrawer';
 import { VendorActionRequiredStrip } from '@/components/vendor/VendorActionRequiredStrip';
 import { VendorSummaryPanel } from '@/components/vendor/VendorSummaryPanel';
-import { formatRelativeAgo, formatDuration, getSlaRisk } from '@/lib/date-utils';
-import type { WorkOrder, WorkOrderStatus, WorkOrderPriority, Technician } from '@/data/seed-data';
+import { formatRelativeAgo, formatDuration } from '@/lib/date-utils';
+import { getStatusBadgeVariant, getStatusDisplayLabel } from '@/lib/workorder-types';
+import { computeSlaRisk } from '@/lib/workorder-compute';
+import { isWorkOrderOverdue } from '@/lib/workorder-compute';
+import { computeStall } from '@/lib/workorder-compute';
+import type { WorkOrder, WorkOrderPriority, Technician } from '@/data/seed-data';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -22,13 +26,7 @@ function parseAddress(address: string): { city: string; state: string } {
   return { city, state };
 }
 
-const statusVariant: Record<WorkOrderStatus, 'completed' | 'in-progress' | 'open' | 'overdue' | 'pending' | 'dispatched'> = {
-  open: 'open',
-  'in-progress': 'in-progress',
-  completed: 'completed',
-  overdue: 'overdue',
-  dispatched: 'dispatched',
-};
+// statusVariant is now handled by getStatusBadgeVariant() from workorder-types
 
 const priorityColors: Record<string, string> = {
   urgent: 'text-red-400',
@@ -40,7 +38,7 @@ const priorityColors: Record<string, string> = {
 function WorkOrderTimestamp({ wo }: { wo: WorkOrder }) {
   const now = Date.now();
   const dueLine =
-    wo.dueDate && wo.status !== 'completed'
+    wo.dueDate && wo.status !== 'closed' && wo.status !== 'cancelled'
       ? (() => {
           const isLate = new Date(wo.dueDate).getTime() < now;
           return isLate ? (
@@ -56,8 +54,12 @@ function WorkOrderTimestamp({ wo }: { wo: WorkOrder }) {
     primary = <span className="text-xs text-gray-500">Dispatched {formatRelativeAgo(wo.dispatchedAt ?? wo.updatedAt)}</span>;
   else if (wo.status === 'in-progress')
     primary = <span className="text-xs text-gray-500">In progress {formatDuration(wo.startedAt ?? wo.updatedAt)}</span>;
-  else if (wo.status === 'completed')
+  else if (wo.status === 'pending-approval')
+    primary = <span className="text-xs text-gray-500">Awaiting approval {formatRelativeAgo(wo.updatedAt)}</span>;
+  else if (wo.status === 'closed')
     primary = <span className="text-xs text-gray-500">Completed {formatRelativeAgo(wo.completedAt)}</span>;
+  else if (wo.status === 'cancelled')
+    primary = <span className="text-xs text-gray-500">Cancelled {formatRelativeAgo(wo.updatedAt)}</span>;
   else
     primary = <span className="text-xs text-gray-500">Opened {formatRelativeAgo(wo.createdAt)}</span>;
 
@@ -70,7 +72,7 @@ function WorkOrderTimestamp({ wo }: { wo: WorkOrder }) {
 }
 
 function SlaRiskChip({ wo }: { wo: WorkOrder }) {
-  const risk = getSlaRisk(wo);
+  const risk = computeSlaRisk(wo);
   if (!risk || risk === 'on-track') return null;
   if (risk === 'approaching')
     return <span className="text-[10px] font-medium text-yellow-400 bg-yellow-500/10 px-1.5 py-0.5 rounded">Approaching SLA</span>;
@@ -86,16 +88,14 @@ function getNextStep(wo: WorkOrder): string | null {
 }
 
 function getStallWarning(wo: WorkOrder): string | null {
-  if (wo.status === 'dispatched' && !wo.startedAt && wo.dispatchedAt) {
-    const h = (Date.now() - new Date(wo.dispatchedAt).getTime()) / 3_600_000;
-    if (h >= 2) return `Dispatched ${formatDuration(wo.dispatchedAt)} ago — not yet started`;
-  }
-  if (wo.status === 'in-progress') {
-    const h = (Date.now() - new Date(wo.updatedAt).getTime()) / 3_600_000;
-    if (h >= 24) return `In progress — no update in ${Math.floor(h / 24)}d`;
-  }
-  if (wo.status === 'overdue') {
+  // Check overdue (computed)
+  if (isWorkOrderOverdue(wo)) {
     return wo.dueDate ? `Overdue by ${formatDuration(wo.dueDate)}` : 'Overdue';
+  }
+  // Check stall via compute function
+  const stall = computeStall(wo);
+  if (stall.stalled) {
+    return stall.explanation;
   }
   return null;
 }
@@ -107,6 +107,7 @@ export default function VendorDashboard() {
     currentUser,
     getAccessibleWorkOrders,
     updateWorkOrder,
+    performTransition,
     getTechniciansByVendor,
     addVendorTechnician,
     updateVendorTechnician,
@@ -202,10 +203,11 @@ export default function VendorDashboard() {
   // Dropdown + pill filtered (for WO list)
   const filteredWorkOrders = useMemo(() => {
     return preFilteredWorkOrders.filter((wo) => {
-      if (pillFilter === 'approaching') return getSlaRisk(wo) === 'approaching';
-      if (pillFilter === 'breached')    return getSlaRisk(wo) === 'breached';
-      if (pillFilter === 'overdue')     return wo.status === 'overdue';
+      if (pillFilter === 'approaching') return computeSlaRisk(wo) === 'approaching';
+      if (pillFilter === 'breached')    return computeSlaRisk(wo) === 'breached';
+      if (pillFilter === 'overdue')     return isWorkOrderOverdue(wo);
       if (pillFilter === 'dispatched')  return wo.status === 'dispatched' && !wo.startedAt;
+      if (pillFilter === 'pending-approval') return wo.status === 'pending-approval';
       if (pillFilter === 'unassigned')
         return ['dispatched', 'in-progress'].includes(wo.status) && !wo.assignedTechnicianId;
       return true;
@@ -216,9 +218,15 @@ export default function VendorDashboard() {
     facilityFilter !== 'all' || cityFilter !== 'all' || stateFilter !== 'all' ||
     priorityFilter !== 'all' || pillFilter !== null;
 
-  const handleStatusUpdate = (workOrderId: string, newStatus: WorkOrderStatus) => {
-    updateWorkOrder(workOrderId, { status: newStatus });
-    if (newStatus === 'in-progress') updateWorkOrder(workOrderId, { startedAt: new Date().toISOString() });
+  const handleStatusUpdate = (workOrderId: string, newStatus: string) => {
+    // Route through the state machine for proper transition events
+    if (newStatus === 'in-progress') {
+      performTransition(workOrderId, 'JOB_STARTED');
+    } else if (newStatus === 'completed' || newStatus === 'pending-approval') {
+      performTransition(workOrderId, 'TECH_MARKED_COMPLETE', undefined, { actualCost: 0 });
+    } else {
+      updateWorkOrder(workOrderId, { status: newStatus as any });
+    }
   };
 
   const handleAssignTechnician = (workOrderId: string, technicianId: string | undefined) => {
@@ -289,7 +297,7 @@ export default function VendorDashboard() {
                       <p className="text-sm font-medium text-white group-hover:text-[#F5C518] transition-colors">{wo.title}</p>
                       <p className="text-xs text-gray-500 mt-0.5">{wo.id} · <WorkOrderTimestamp wo={wo} /></p>
                     </div>
-                    <Badge variant={statusVariant[wo.status]}>{wo.status}</Badge>
+                    <Badge variant={getStatusBadgeVariant(wo.status)}>{getStatusDisplayLabel(wo.status)}</Badge>
                   </div>
                 </div>
               ))}
@@ -443,10 +451,10 @@ export default function VendorDashboard() {
                         className="flex items-center gap-2 flex-shrink-0"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <Badge variant={statusVariant[wo.status]}>{wo.status}</Badge>
+                        <Badge variant={getStatusBadgeVariant(wo.status)}>{getStatusDisplayLabel(wo.status)}</Badge>
                         {wo.status === 'dispatched' && (
                           <button
-                            onClick={() => handleStatusUpdate(wo.id, 'in-progress')}
+                            onClick={() => performTransition(wo.id, 'JOB_STARTED')}
                             className="px-2.5 py-1 text-xs font-medium rounded-lg bg-[#F5C518]/10 text-[#F5C518] border border-[#F5C518]/20 hover:bg-[#F5C518]/20 transition-colors whitespace-nowrap"
                           >
                             Start
@@ -454,11 +462,16 @@ export default function VendorDashboard() {
                         )}
                         {wo.status === 'in-progress' && (
                           <button
-                            onClick={() => handleStatusUpdate(wo.id, 'completed')}
+                            onClick={() => performTransition(wo.id, 'TECH_MARKED_COMPLETE', undefined, { actualCost: 0 })}
                             className="px-2.5 py-1 text-xs font-medium rounded-lg bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20 transition-colors whitespace-nowrap"
                           >
                             Complete
                           </button>
+                        )}
+                        {wo.status === 'pending-approval' && (
+                          <span className="text-[10px] text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded whitespace-nowrap">
+                            Awaiting Approval
+                          </span>
                         )}
                         <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-gray-400 transition-colors" />
                       </div>

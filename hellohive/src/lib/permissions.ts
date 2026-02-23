@@ -12,6 +12,8 @@ export type Permission =
   | 'voiceIntake'
   | 'dispatchVendors'
   | 'updateWorkOrderStatus'
+  | 'approveWorkOrders'
+  | 'cancelWorkOrders'
   | 'viewAllWorkOrders'
   | 'manageVendors'
   | 'manageProperties'
@@ -26,6 +28,8 @@ export const rolePermissions: Record<Role, Permission[]> = {
     'voiceIntake',
     'dispatchVendors',
     'updateWorkOrderStatus',
+    'approveWorkOrders',
+    'cancelWorkOrders',
     'viewAllWorkOrders',
     'manageVendors',
     'manageProperties',
@@ -38,6 +42,7 @@ export const rolePermissions: Record<Role, Permission[]> = {
     'voiceIntake',
     'dispatchVendors',
     'updateWorkOrderStatus',
+    'approveWorkOrders',
     'viewAllWorkOrders',
     'manageAssets',
   ],

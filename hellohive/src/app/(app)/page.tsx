@@ -14,6 +14,8 @@ import { users } from '@/data/seed-data';
 import type { WorkOrder } from '@/data/seed-data';
 import { useUser } from '@/context/UserContext';
 import { formatRelativeAgo } from '@/lib/date-utils';
+import { getStatusBadgeVariant, getStatusDisplayLabel } from '@/lib/workorder-types';
+import { isWorkOrderOverdue } from '@/lib/workorder-compute';
 
 export default function Dashboard() {
   const { currentUser, getAccessibleWorkOrders, getActivityFeed, hasPermission, getAllAssets } = useUser();
@@ -24,8 +26,8 @@ export default function Dashboard() {
   // Compute metrics from accessible work orders
   const openCount = accessibleWorkOrders.filter((wo) => wo.status === 'open').length;
   const inProgressCount = accessibleWorkOrders.filter((wo) => wo.status === 'in-progress').length;
-  const completedCount = accessibleWorkOrders.filter((wo) => wo.status === 'completed').length;
-  const overdueCount = accessibleWorkOrders.filter((wo) => wo.status === 'overdue').length;
+  const completedCount = accessibleWorkOrders.filter((wo) => wo.status === 'closed').length;
+  const overdueCount = accessibleWorkOrders.filter((wo) => isWorkOrderOverdue(wo)).length;
 
   // Calculate average resolution time (in hours) for completed work orders
   const completedWOs = accessibleWorkOrders.filter((wo) => wo.completedAt);
@@ -118,7 +120,7 @@ export default function Dashboard() {
                       >
                         {wo.id}
                       </Link>
-                      <Badge variant={wo.status}>{wo.status}</Badge>
+                      <Badge variant={getStatusBadgeVariant(wo.status)}>{getStatusDisplayLabel(wo.status)}</Badge>
                     </div>
                     <p className="text-sm text-white">{wo.title}</p>
                     <p className="text-xs text-gray-400 mt-1">

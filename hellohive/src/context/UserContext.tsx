@@ -5,6 +5,10 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 const CONVERSATIONS_STORAGE_KEY = 'hellohive-conversations';
 import { User, users as seedUsers, workOrders as seedWorkOrders, activityFeed as seedActivityFeed, vendors as seedVendors, technicians as seedTechnicians, properties as seedProperties, conversations as seedConversations, WorkOrder, ActivityFeedItem, Vendor, Technician, Property, Asset, Conversation, Message } from '@/data/seed-data';
 import { rolePermissions, type Permission } from '@/lib/permissions';
+import type { WorkOrderEventType, WorkOrderEvent, TransitionResult, Blocker } from '@/lib/workorder-types';
+import { SYSTEM_ACTOR } from '@/lib/workorder-types';
+import { transitionWorkOrder, canAppendEvent, getNextState } from '@/lib/workorder-machine';
+import { createEvent, getAutoBlockerEffects } from '@/lib/workorder-events';
 
 // Re-export Permission for backward compatibility with components importing from here
 export type { Permission } from '@/lib/permissions';
@@ -65,6 +69,20 @@ interface UserContextType {
   addVendorTechnician: (tech: Technician) => void;
   updateVendorTechnician: (techId: string, updates: Partial<Technician>) => void;
   removeVendorTechnician: (techId: string) => void;
+
+  // v3.1 Work Order lifecycle
+  performTransition: (
+    workOrderId: string,
+    eventType: WorkOrderEventType,
+    notes?: string,
+    metadata?: Record<string, unknown>,
+  ) => TransitionResult;
+  appendWorkOrderEvent: (
+    workOrderId: string,
+    eventType: WorkOrderEventType,
+    notes?: string,
+    metadata?: Record<string, unknown>,
+  ) => void;
 
   // Messaging
   conversations: Conversation[];
@@ -188,12 +206,239 @@ export function UserProvider({
         if (updates.status === 'in-progress' && !wo.startedAt) {
           enriched.startedAt = new Date().toISOString();
         }
-        if (updates.status === 'completed' && !wo.completedAt) {
+        if (updates.status === 'closed' && !wo.completedAt) {
           enriched.completedAt = new Date().toISOString();
         }
         return { ...wo, ...enriched, updatedAt: new Date().toISOString() };
       })
     );
+  };
+
+  // v3.1: Transition a work order through the state machine
+  const performTransition = (
+    workOrderId: string,
+    eventType: WorkOrderEventType,
+    notes?: string,
+    metadata?: Record<string, unknown>,
+  ): TransitionResult => {
+    const wo = workOrders.find(w => w.id === workOrderId);
+    if (!wo) return { success: false, error: 'Work order not found' };
+
+    const actor = {
+      role: currentUser.role,
+      id: currentUser.id,
+      displayName: currentUser.name,
+    };
+
+    // Enrich metadata for FACILITY_APPROVED with cost/vendor info
+    const enrichedMeta = { ...metadata };
+    if (eventType === 'FACILITY_APPROVED') {
+      enrichedMeta.amount = wo.actualCost ?? wo.estimatedCost ?? wo.cost;
+      enrichedMeta.vendorId = wo.assignedVendorId;
+    }
+
+    const result = transitionWorkOrder(wo.status, eventType, actor, notes, enrichedMeta);
+    if (!result.success || !result.events) return result;
+
+    const newState = getNextState(wo.status, eventType);
+    if (!newState) return { success: false, error: 'Could not determine next state' };
+
+    // Build update payload
+    const updates: Partial<WorkOrder> = {
+      status: newState,
+      events: [...wo.events, ...result.events],
+      updatedAt: new Date().toISOString(),
+    };
+
+    // Timestamp enrichment
+    if (newState === 'dispatched' && !wo.dispatchedAt) {
+      updates.dispatchedAt = result.events[0].at;
+    }
+    if (newState === 'in-progress' && !wo.startedAt) {
+      updates.startedAt = result.events[0].at;
+    }
+    if (newState === 'closed') {
+      updates.completedAt = result.events[0].at;
+    }
+
+    // DISPATCHED: set vendor IDs
+    if (eventType === 'DISPATCHED' && metadata?.selectedVendorId) {
+      updates.selectedVendorId = metadata.selectedVendorId as string;
+      updates.assignedVendorId = metadata.selectedVendorId as string;
+    }
+
+    // VENDOR_REASSIGNED: clear old vendor/tech, set new
+    if (eventType === 'VENDOR_REASSIGNED' && metadata?.newVendorId) {
+      updates.selectedVendorId = metadata.newVendorId as string;
+      updates.assignedVendorId = metadata.newVendorId as string;
+      updates.assignedTechnicianId = undefined;
+      updates.blocker = undefined;
+    }
+
+    // TECH_MARKED_COMPLETE: capture actualCost
+    if (eventType === 'TECH_MARKED_COMPLETE' && metadata?.actualCost !== undefined) {
+      updates.actualCost = metadata.actualCost as number;
+    }
+
+    // FACILITY_APPROVED: payment hook + cost approval
+    if (eventType === 'FACILITY_APPROVED') {
+      updates.payment = {
+        status: 'triggered',
+        triggeredAt: result.events[0].at,
+        amount: wo.actualCost ?? wo.estimatedCost ?? wo.cost ?? 0,
+        vendorId: wo.assignedVendorId ?? '',
+      };
+      updates.costApprovedBy = {
+        role: currentUser.role,
+        id: currentUser.id,
+        at: result.events[0].at,
+      };
+    }
+
+    // Apply update
+    updateWorkOrder(workOrderId, updates);
+
+    // Backward compat: also add to global activity feed
+    addActivityFeedItem({
+      id: `activity-${Date.now()}`,
+      workOrderId,
+      message: `${eventType.replace(/_/g, ' ').toLowerCase()} by ${currentUser.name}`,
+      timestamp: result.events[0].at,
+      userId: currentUser.id,
+    });
+
+    return result;
+  };
+
+  // v3.1: Append a non-transition event (notes, blockers, cost updates, etc.)
+  const appendWorkOrderEvent = (
+    workOrderId: string,
+    eventType: WorkOrderEventType,
+    notes?: string,
+    metadata?: Record<string, unknown>,
+  ): void => {
+    const wo = workOrders.find(w => w.id === workOrderId);
+    if (!wo) return;
+
+    // Permission check (system events bypass)
+    const actor = {
+      role: currentUser.role,
+      id: currentUser.id,
+      displayName: currentUser.name,
+    };
+
+    if (!canAppendEvent(eventType, actor.role as string)) {
+      console.error(`Permission denied: ${actor.role} cannot perform ${eventType}`);
+      return;
+    }
+
+    const event = createEvent(eventType, actor, notes, metadata);
+    const allNewEvents = [event];
+
+    // Auto-blocker side effects
+    const blockerEffects = getAutoBlockerEffects(eventType, wo.blocker, actor, metadata);
+    allNewEvents.push(...blockerEffects.sideEffectEvents);
+
+    const updates: Partial<WorkOrder> = {
+      events: [...wo.events, ...allNewEvents],
+      updatedAt: new Date().toISOString(),
+    };
+
+    // Apply blocker changes
+    if (blockerEffects.setBlocker) {
+      updates.blocker = blockerEffects.setBlocker;
+    }
+    if (blockerEffects.clearBlocker) {
+      updates.blocker = undefined;
+    }
+
+    // TECH_ASSIGNED: update assignedTechnicianId
+    if (eventType === 'TECH_ASSIGNED' && metadata?.technicianId) {
+      updates.assignedTechnicianId = metadata.technicianId as string;
+    }
+
+    // ETA_UPDATED: update vendorReportedEta
+    if (eventType === 'ETA_UPDATED' && metadata?.eta) {
+      updates.vendorReportedEta = metadata.eta as string;
+    }
+
+    // PRIORITY_CHANGED: update priority
+    if (eventType === 'PRIORITY_CHANGED' && metadata?.newPriority) {
+      (updates as Record<string, unknown>).priority = metadata.newPriority as string;
+    }
+
+    // COST_ESTIMATE_UPDATED: update estimatedCost
+    if (eventType === 'COST_ESTIMATE_UPDATED' && metadata?.newEstimate !== undefined) {
+      updates.estimatedCost = metadata.newEstimate as number;
+    }
+
+    // SCOPE_CHANGE_REQUESTED: add to scopeChanges
+    if (eventType === 'SCOPE_CHANGE_REQUESTED' && metadata) {
+      const scopeChange = {
+        id: event.id,
+        requestedAt: event.at,
+        requestedBy: { role: actor.role, id: actor.id },
+        description: (metadata.description as string) ?? '',
+        revisedEstimate: metadata.revisedEstimate as number | undefined,
+        status: 'pending' as const,
+      };
+      updates.scopeChanges = [...wo.scopeChanges, scopeChange];
+    }
+
+    // SCOPE_CHANGE_APPROVED: update scope change status + estimatedCost
+    if (eventType === 'SCOPE_CHANGE_APPROVED' && metadata?.scopeChangeId) {
+      updates.scopeChanges = wo.scopeChanges.map(sc =>
+        sc.id === metadata.scopeChangeId
+          ? {
+              ...sc,
+              status: 'approved' as const,
+              resolvedAt: event.at,
+              resolvedBy: { role: actor.role, id: actor.id },
+            }
+          : sc
+      );
+      const approved = wo.scopeChanges.find(sc => sc.id === metadata.scopeChangeId);
+      if (approved?.revisedEstimate !== undefined) {
+        updates.estimatedCost = approved.revisedEstimate;
+      }
+    }
+
+    // SCOPE_CHANGE_REJECTED
+    if (eventType === 'SCOPE_CHANGE_REJECTED' && metadata?.scopeChangeId) {
+      updates.scopeChanges = wo.scopeChanges.map(sc =>
+        sc.id === metadata.scopeChangeId
+          ? {
+              ...sc,
+              status: 'rejected' as const,
+              resolvedAt: event.at,
+              resolvedBy: { role: actor.role, id: actor.id },
+              reason: notes,
+            }
+          : sc
+      );
+    }
+
+    // RETURN_VISIT_REQUIRED: set returnVisit
+    if (eventType === 'RETURN_VISIT_REQUIRED' && metadata) {
+      updates.returnVisit = {
+        required: true,
+        reason: metadata.reason as string | undefined,
+        neededTools: metadata.neededTools as string[] | undefined,
+        neededMaterials: metadata.neededMaterials as string[] | undefined,
+        targetDate: metadata.targetDate as string | undefined,
+      };
+    }
+
+    updateWorkOrder(workOrderId, updates);
+
+    // Backward compat: activity feed
+    addActivityFeedItem({
+      id: `activity-${Date.now()}`,
+      workOrderId,
+      message: notes ?? `${eventType.replace(/_/g, ' ').toLowerCase()} by ${currentUser.name}`,
+      timestamp: event.at,
+      userId: currentUser.id,
+    });
   };
 
   // Vendor management methods
@@ -547,6 +792,8 @@ export function UserProvider({
         addVendorTechnician,
         updateVendorTechnician,
         removeVendorTechnician,
+        performTransition,
+        appendWorkOrderEvent,
         conversations,
         getConversationByWorkOrder,
         getDirectConversations,

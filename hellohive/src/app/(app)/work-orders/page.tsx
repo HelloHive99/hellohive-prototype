@@ -7,19 +7,22 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { useUser } from '@/context/UserContext';
 import { properties, vendors } from '@/data/seed-data';
-import type { WorkOrderStatus, WorkOrderPriority } from '@/data/seed-data';
+import type { WorkOrderPriority } from '@/data/seed-data';
+import type { WorkflowState } from '@/lib/workorder-types';
+import { getStatusBadgeVariant, getStatusDisplayLabel } from '@/lib/workorder-types';
+import { isWorkOrderOverdue } from '@/lib/workorder-compute';
 import { MultiSelectVendorFilter } from '@/components/filters/MultiSelectVendorFilter';
 import { DateFilterDropdown } from '@/components/filters/DateFilterDropdown';
 import { DateRangeModal } from '@/components/filters/DateRangeModal';
 import { isLast24Hours, isLast7Days, isOverdue, isNext3Days, isInDateRange, formatRelativeAgo } from '@/lib/date-utils';
-import { CircleDot, Clock, AlertTriangle, CheckCircle2, UserX } from 'lucide-react';
+import { CircleDot, Clock, AlertTriangle, CheckCircle2, UserX, ShieldCheck } from 'lucide-react';
 
-type FilterStatus = 'all' | WorkOrderStatus;
+type FilterStatus = 'all' | WorkflowState | 'overdue';
 type FilterPriority = 'all' | WorkOrderPriority;
 type SortColumn = 'id' | 'created' | 'priority' | 'status' | 'vendor' | 'space';
 type SortDirection = 'asc' | 'desc';
 
-const VALID_STATUSES: FilterStatus[] = ['all', 'open', 'in-progress', 'dispatched', 'completed', 'overdue'];
+const VALID_STATUSES: FilterStatus[] = ['all', 'open', 'dispatched', 'in-progress', 'pending-approval', 'closed', 'cancelled', 'overdue'];
 
 function WorkOrdersContent() {
   const { getAccessibleWorkOrders, currentUser } = useUser();
@@ -43,7 +46,7 @@ function WorkOrdersContent() {
   const [myVendorsOnly, setMyVendorsOnly] = useState<boolean>(false);
   const [sortColumn, setSortColumn] = useState<SortColumn>('created');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-  const [quickFilter, setQuickFilter] = useState<WorkOrderStatus | 'unassigned' | null>(null);
+  const [quickFilter, setQuickFilter] = useState<WorkflowState | 'overdue' | 'unassigned' | null>(null);
 
   // Created Date Filter
   const [createdDateFilter, setCreatedDateFilter] = useState<'all' | 'last24h' | 'last7d' | 'custom'>('all');
@@ -74,7 +77,7 @@ function WorkOrdersContent() {
   };
 
   // Handle metric card clicks (quick filtering)
-  const handleMetricClick = (filter: WorkOrderStatus | 'unassigned') => {
+  const handleMetricClick = (filter: WorkflowState | 'overdue' | 'unassigned') => {
     if (quickFilter === filter) {
       setQuickFilter(null); // Clear filter if clicking same metric
     } else {
@@ -129,23 +132,31 @@ function WorkOrdersContent() {
     return ranks[priority];
   };
 
-  // Status ranking: overdue (MOST urgent) → completed (done)
-  const getStatusRank = (status: WorkOrderStatus): number => {
-    const ranks = {
-      overdue: 0,      // Highest priority - overdue work
-      open: 1,         // Needs assignment/action
-      'in-progress': 2, // Work started
-      dispatched: 3,   // Vendor assigned, waiting
-      completed: 4     // Lowest priority - finished
+  // Status ranking: open (needs action) → closed (done)
+  const getStatusRank = (status: WorkflowState): number => {
+    const ranks: Record<WorkflowState, number> = {
+      open: 0,                // Needs assignment/action
+      dispatched: 1,          // Vendor assigned, waiting
+      'in-progress': 2,       // Work started
+      'pending-approval': 3,  // Awaiting facility approval
+      closed: 4,              // Finished
+      cancelled: 5,           // Terminal
     };
-    return ranks[status];
+    return ranks[status] ?? 3;
   };
 
   // Apply filters and sorting
   const filteredAndSortedWorkOrders = useMemo(() => {
     // Step 1: Apply all filters
     let result = workOrders.filter((wo) => {
-      if (statusFilter !== 'all' && wo.status !== statusFilter) return false;
+      // Status filter: 'overdue' is computed, others check wo.status
+      if (statusFilter !== 'all') {
+        if (statusFilter === 'overdue') {
+          if (!isWorkOrderOverdue(wo)) return false;
+        } else if (wo.status !== statusFilter) {
+          return false;
+        }
+      }
       if (propertyFilter !== 'all' && wo.propertyId !== propertyFilter) return false;
       if (priorityFilter !== 'all' && wo.priority !== priorityFilter) return false;
 
@@ -181,9 +192,11 @@ function WorkOrdersContent() {
       // Quick filter (from metrics bar)
       if (quickFilter) {
         if (quickFilter === 'unassigned') {
-          if (wo.assignedVendorId) return false; // Show only unassigned
+          if (wo.assignedVendorId) return false;
+        } else if (quickFilter === 'overdue') {
+          if (!isWorkOrderOverdue(wo)) return false;
         } else {
-          if (wo.status !== quickFilter) return false; // Show only matching status
+          if (wo.status !== quickFilter) return false;
         }
       }
 
@@ -310,9 +323,10 @@ function WorkOrdersContent() {
     return {
       open: filteredAndSortedWorkOrders.filter((wo) => wo.status === 'open').length,
       inProgress: filteredAndSortedWorkOrders.filter((wo) => wo.status === 'in-progress').length,
-      overdue: filteredAndSortedWorkOrders.filter((wo) => wo.status === 'overdue').length,
+      overdue: filteredAndSortedWorkOrders.filter((wo) => isWorkOrderOverdue(wo)).length,
+      pendingApproval: filteredAndSortedWorkOrders.filter((wo) => wo.status === 'pending-approval').length,
       completedToday: filteredAndSortedWorkOrders.filter((wo) => {
-        if (wo.status !== 'completed' || !wo.completedAt) return false;
+        if (wo.status !== 'closed' || !wo.completedAt) return false;
         const completed = new Date(wo.completedAt);
         const today = new Date();
         return (
@@ -352,9 +366,11 @@ function WorkOrdersContent() {
             >
               <option value="all">All</option>
               <option value="open">Open</option>
-              <option value="in-progress">In Progress</option>
               <option value="dispatched">Dispatched</option>
-              <option value="completed">Completed</option>
+              <option value="in-progress">In Progress</option>
+              <option value="pending-approval">Pending Approval</option>
+              <option value="closed">Completed</option>
+              <option value="cancelled">Cancelled</option>
               <option value="overdue">Overdue</option>
             </select>
           </div>
@@ -584,7 +600,7 @@ function WorkOrdersContent() {
       )}
 
       {/* Summary Metrics Bar */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         {/* Open */}
         <button
           onClick={() => handleMetricClick('open')}
@@ -625,6 +641,26 @@ function WorkOrdersContent() {
           </div>
         </button>
 
+        {/* Pending Approval */}
+        <button
+          onClick={() => handleMetricClick('pending-approval')}
+          className={`text-left p-4 rounded-lg border transition-all ${
+            quickFilter === 'pending-approval'
+              ? 'bg-gray-800 border-purple-500 shadow-lg shadow-purple-500/20'
+              : 'bg-gray-800 border-gray-700 hover:border-gray-600 hover:bg-gray-800'
+          }`}
+        >
+          <p className="text-sm font-medium text-gray-400 uppercase tracking-wider">
+            Pending Approval
+          </p>
+          <div className="flex items-center gap-3 mt-2">
+            <p className="text-4xl font-semibold tracking-tighter tabular-nums text-purple-400">
+              {metrics.pendingApproval}
+            </p>
+            <ShieldCheck className="w-5 h-5 text-purple-400" />
+          </div>
+        </button>
+
         {/* Overdue */}
         <button
           onClick={() => handleMetricClick('overdue')}
@@ -647,9 +683,9 @@ function WorkOrdersContent() {
 
         {/* Completed Today */}
         <button
-          onClick={() => handleMetricClick('completed')}
+          onClick={() => handleMetricClick('closed')}
           className={`text-left p-4 rounded-lg border transition-all ${
-            quickFilter === 'completed'
+            quickFilter === 'closed'
               ? 'bg-gray-800 border-[#F5C518] shadow-lg shadow-[#F5C518]/20'
               : 'bg-gray-800 border-gray-700 hover:border-gray-600 hover:bg-gray-800'
           }`}
@@ -788,7 +824,14 @@ function WorkOrdersContent() {
                         </Badge>
                       </td>
                       <td className="py-6">
-                        <Badge variant={wo.status}>{wo.status}</Badge>
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant={getStatusBadgeVariant(wo.status)}>
+                            {getStatusDisplayLabel(wo.status)}
+                          </Badge>
+                          {isWorkOrderOverdue(wo) && (
+                            <Badge variant="overdue">Overdue</Badge>
+                          )}
+                        </div>
                       </td>
                       <td className="py-6">
                         <p className="text-base text-white">

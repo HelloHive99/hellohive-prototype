@@ -1,6 +1,7 @@
 'use client';
 
 import { startOfDay, endOfDay, subDays } from 'date-fns';
+import { isWorkOrderOverdue } from '@/lib/workorder-compute';
 import type { WorkOrder } from '@/data/seed-data';
 
 interface Props {
@@ -34,14 +35,14 @@ export function VendorSummaryPanel({ workOrders }: Props) {
 
   // TODAY
   const dueToday = workOrders.filter(
-    (wo) => wo.dueDate && new Date(wo.dueDate) >= todayStart && new Date(wo.dueDate) <= todayEnd && wo.status !== 'completed'
+    (wo) => wo.dueDate && new Date(wo.dueDate) >= todayStart && new Date(wo.dueDate) <= todayEnd && wo.status !== 'closed' && wo.status !== 'cancelled'
   ).length;
-  const overdueNow = workOrders.filter((wo) => wo.status === 'overdue').length;
+  const overdueNow = workOrders.filter((wo) => isWorkOrderOverdue(wo)).length;
   const unassigned = workOrders.filter(
     (wo) => ['dispatched', 'in-progress'].includes(wo.status) && !wo.assignedTechnicianId
   ).length;
   const urgentOpen = workOrders.filter(
-    (wo) => ['urgent', 'high'].includes(wo.priority) && wo.status !== 'completed'
+    (wo) => ['urgent', 'high'].includes(wo.priority) && wo.status !== 'closed' && wo.status !== 'cancelled'
   ).length;
 
   // THIS WEEK

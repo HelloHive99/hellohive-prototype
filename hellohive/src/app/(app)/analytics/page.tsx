@@ -19,6 +19,7 @@ import { ArrowUp, ArrowDown } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/context/UserContext';
+import { isWorkOrderOverdue } from '@/lib/workorder-compute';
 import type { WorkOrder } from '@/data/seed-data';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -205,7 +206,7 @@ export default function AnalyticsPage() {
             : null,
         higherIsBetter: false as const,
       },
-      overdue: { value: filteredWOs.filter((wo) => wo.status === 'overdue').length },
+      overdue: { value: filteredWOs.filter((wo) => isWorkOrderOverdue(wo)).length },
       volume: {
         value: curWOs.length,
         delta: prevWOs.length > 0 ? curWOs.length - prevWOs.length : null,
@@ -245,12 +246,13 @@ export default function AnalyticsPage() {
         );
         return {
           label: b.label,
-          completed: inBucket.filter((wo) => wo.status === 'completed').length,
+          completed: inBucket.filter((wo) => wo.status === 'closed').length,
           'in-progress': inBucket.filter((wo) =>
             ['in-progress', 'dispatched'].includes(wo.status)
           ).length,
+          'pending-approval': inBucket.filter((wo) => wo.status === 'pending-approval').length,
           open: inBucket.filter((wo) => wo.status === 'open').length,
-          overdue: inBucket.filter((wo) => wo.status === 'overdue').length,
+          overdue: inBucket.filter((wo) => isWorkOrderOverdue(wo)).length,
         };
       }),
     [filteredWOs, buckets]
@@ -495,6 +497,7 @@ export default function AnalyticsPage() {
             />
             <Bar dataKey="completed" stackId="a" fill="#2ECC71" name="Completed" />
             <Bar dataKey="in-progress" stackId="a" fill="#F5C518" name="In Progress" />
+            <Bar dataKey="pending-approval" stackId="a" fill="#8B5CF6" name="Pending Approval" />
             <Bar dataKey="open" stackId="a" fill="#6b7280" name="Open" />
             <Bar
               dataKey="overdue"
@@ -603,7 +606,7 @@ export default function AnalyticsPage() {
                 radius={[0, 4, 4, 0]}
                 name="Completed"
                 style={{ cursor: 'pointer' }}
-                onClick={() => router.push('/work-orders?status=completed')}
+                onClick={() => router.push('/work-orders?status=closed')}
               />
             </BarChart>
           </ResponsiveContainer>

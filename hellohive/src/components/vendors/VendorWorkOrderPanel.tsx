@@ -4,12 +4,13 @@ import { useState } from 'react';
 import { X, Calendar, MapPin, Package, User } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { MessageThread } from '@/components/vendors/MessageThread';
-import type { WorkOrder, WorkOrderStatus, Technician, Property, Conversation } from '@/data/seed-data';
+import { getStatusBadgeVariant, getStatusDisplayLabel } from '@/lib/workorder-types';
+import type { WorkOrder, Technician, Property, Conversation } from '@/data/seed-data';
 
 interface VendorWorkOrderPanelProps {
   workOrder: WorkOrder;
   onClose: () => void;
-  onStatusUpdate: (id: string, status: WorkOrderStatus) => void;
+  onStatusUpdate: (id: string, status: string) => void;
   isVendorAdmin: boolean;
   vendorTechnicians: Technician[];
   properties: Property[];
@@ -20,13 +21,7 @@ interface VendorWorkOrderPanelProps {
   onMarkRead?: () => void;
 }
 
-const statusVariant: Record<WorkOrderStatus, 'completed' | 'in-progress' | 'open' | 'overdue' | 'pending' | 'dispatched'> = {
-  open: 'open',
-  'in-progress': 'in-progress',
-  completed: 'completed',
-  overdue: 'overdue',
-  dispatched: 'dispatched',
-};
+// statusVariant is now handled by getStatusBadgeVariant() from workorder-types
 
 const priorityColors: Record<string, string> = {
   critical: 'text-red-400',
@@ -83,6 +78,7 @@ export function VendorWorkOrderPanel({
   };
 
   const isEditable = workOrder.status === 'dispatched' || workOrder.status === 'in-progress';
+  const isPendingApproval = workOrder.status === 'pending-approval';
 
   // Unread count for badge on Messages tab
   const unreadCount = conversation
@@ -118,7 +114,7 @@ export function VendorWorkOrderPanel({
             <p className="text-xs text-gray-500 font-mono mb-1">{workOrder.id}</p>
             <h2 className="text-lg font-semibold text-white leading-snug">{workOrder.title}</h2>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
-              <Badge variant={statusVariant[workOrder.status]}>{workOrder.status}</Badge>
+              <Badge variant={getStatusBadgeVariant(workOrder.status)}>{getStatusDisplayLabel(workOrder.status)}</Badge>
               <span className={`text-xs font-medium px-2 py-0.5 rounded border ${priorityBg[workOrder.priority]}`}>
                 {workOrder.priority.charAt(0).toUpperCase() + workOrder.priority.slice(1)} priority
               </span>
@@ -219,7 +215,7 @@ export function VendorWorkOrderPanel({
                         <Calendar className="w-3.5 h-3.5" /> Due
                       </span>
                       <span className={`text-sm font-medium ${
-                        new Date(workOrder.dueDate) < new Date() && workOrder.status !== 'completed'
+                        new Date(workOrder.dueDate) < new Date() && workOrder.status !== 'closed' && workOrder.status !== 'cancelled'
                           ? 'text-red-400'
                           : 'text-gray-300'
                       }`}>
@@ -320,12 +316,20 @@ export function VendorWorkOrderPanel({
             )}
             {workOrder.status === 'in-progress' && (
               <button
-                onClick={() => { onStatusUpdate(workOrder.id, 'completed'); onClose(); }}
+                onClick={() => { onStatusUpdate(workOrder.id, 'pending-approval'); onClose(); }}
                 className="w-full py-2.5 text-sm font-medium rounded-lg bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20 transition-colors"
               >
-                Mark Completed
+                Mark Complete
               </button>
             )}
+          </div>
+        )}
+        {/* Pending approval — informational footer for vendors */}
+        {activeTab === 'details' && isPendingApproval && (
+          <div className="p-5 border-t border-neutral-800">
+            <div className="flex items-center gap-2 p-3 bg-purple-500/10 border border-purple-500/20 rounded-lg">
+              <span className="text-sm text-purple-400">Awaiting facility approval</span>
+            </div>
           </div>
         )}
       </div>

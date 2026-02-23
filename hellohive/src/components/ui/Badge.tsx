@@ -1,7 +1,7 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 
-export type BadgeVariant = 'completed' | 'in-progress' | 'open' | 'overdue' | 'pending' | 'dispatched';
+export type BadgeVariant = 'completed' | 'in-progress' | 'open' | 'overdue' | 'pending' | 'dispatched' | 'pending-approval' | 'cancelled';
 
 interface BadgeProps {
   children: React.ReactNode;
@@ -33,6 +33,14 @@ const variantStyles: Record<BadgeVariant, { container: string; dot: string }> = 
   dispatched: {
     container: 'bg-[#3B82F6]/20 text-[#3B82F6] border-[#3B82F6]/30',
     dot: 'bg-[#3B82F6]',
+  },
+  'pending-approval': {
+    container: 'bg-[#8B5CF6]/20 text-[#8B5CF6] border-[#8B5CF6]/30',
+    dot: 'bg-[#8B5CF6]',
+  },
+  cancelled: {
+    container: 'bg-[#6B7280]/20 text-[#6B7280] border-[#6B7280]/30',
+    dot: 'bg-[#6B7280]',
   },
 };
 

@@ -91,7 +91,7 @@ export default function AssetsPage() {
   const openWorkOrdersCount = useMemo(() => {
     const counts: Record<string, number> = {};
     workOrders.forEach(wo => {
-      if (wo.assetId && wo.status !== 'completed') {
+      if (wo.assetId && wo.status !== 'closed' && wo.status !== 'cancelled') {
         counts[wo.assetId] = (counts[wo.assetId] || 0) + 1;
       }
     });

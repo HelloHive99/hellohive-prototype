@@ -9,6 +9,7 @@ import { properties, vendors } from '@/data/seed-data';
 import { SAMPLE_TRANSCRIPT, PARSED_FIELDS } from '@/data/sample-voice-intake';
 import type { WorkOrderPriority, VendorCategory } from '@/data/seed-data';
 import type { ParsedFields } from '@/app/api/transcribe/route';
+import { createEvent } from '@/lib/workorder-events';
 
 interface NewServiceRequestModalProps {
   isOpen: boolean;
@@ -317,6 +318,9 @@ export function NewServiceRequestModal({ isOpen, onClose }: NewServiceRequestMod
         createdBy: currentUser.id,
         createdAt: now,
         updatedAt: now,
+        events: [createEvent('WO_CREATED', { role: currentUser.role, id: currentUser.id, displayName: currentUser.name })],
+        blockers: [],
+        scopeChanges: [],
       };
 
       addWorkOrder(newWorkOrder);
@@ -352,6 +356,10 @@ export function NewServiceRequestModal({ isOpen, onClose }: NewServiceRequestMod
         updatedAt: now,
         assignedTechnicianId: manualTechnicianId || undefined,
         dueDate: manualDueDate || undefined,
+        dueAtSource: manualDueDate ? 'manual' as const : 'computed' as const,
+        events: [createEvent('WO_CREATED', { role: currentUser.role, id: currentUser.id, displayName: currentUser.name })],
+        blockers: [],
+        scopeChanges: [],
       };
 
       addWorkOrder(newWorkOrder);

@@ -132,7 +132,7 @@ export default function VendorPerformancePage() {
       .filter((v) => selectedVendorId === 'all' || v.id === selectedVendorId)
       .map((vendor) => {
         const vWOs = filteredWOs.filter((wo) => wo.assignedVendorId === vendor.id);
-        const completed = vWOs.filter((wo) => wo.status === 'completed' && wo.completedAt);
+        const completed = vWOs.filter((wo) => wo.status === 'closed' && wo.completedAt);
 
         // SLA compliance
         const onTime = completed.filter(isOnTime);

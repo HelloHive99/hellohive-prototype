@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { startOfDay, endOfDay, subDays, addDays } from 'date-fns';
+import { isWorkOrderOverdue } from '@/lib/workorder-compute';
 import type { WorkOrder, Asset } from '@/data/seed-data';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -79,10 +80,10 @@ export function TodayFocusPanel({
       wo.dueDate &&
       new Date(wo.dueDate) >= todayStart &&
       new Date(wo.dueDate) <= todayEnd &&
-      wo.status !== 'completed'
+      wo.status !== 'closed' && wo.status !== 'cancelled'
   ).length;
 
-  const overdueCount = workOrders.filter((wo) => wo.status === 'overdue').length;
+  const overdueCount = workOrders.filter((wo) => isWorkOrderOverdue(wo)).length;
 
   const urgentOpen = workOrders.filter(
     (wo) => wo.priority === 'urgent' && wo.status === 'open'
