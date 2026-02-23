@@ -1,7 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, LogOut } from 'lucide-react';
+import { ChevronDown, LogOut, Menu } from 'lucide-react';
+
+interface HeaderProps {
+  onMenuClick?: () => void;
+}
 import { signOut } from 'next-auth/react';
 import { useUser } from '@/context/UserContext';
 import { users } from '@/data/seed-data';
@@ -27,12 +31,21 @@ const roleBadgeVariants: Record<string, 'completed' | 'in-progress' | 'open' | '
 const devPersonaSwitcherEnabled =
   process.env.NEXT_PUBLIC_DEV_PERSONA_SWITCHER === 'true';
 
-export function Header() {
+export function Header({ onMenuClick }: HeaderProps) {
   const { currentUser, switchUser } = useUser();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   return (
-    <header className="bg-neutral-900 border-b border-slate-800/50 h-16 px-6 flex items-center justify-between">
+    <header className="bg-neutral-900 border-b border-slate-800/50 h-16 px-4 md:px-6 flex items-center justify-between">
+      {/* Hamburger — mobile only */}
+      <button
+        onClick={onMenuClick}
+        className="lg:hidden p-2 -ml-1 text-gray-400 hover:text-white transition-colors"
+        aria-label="Open menu"
+      >
+        <Menu className="w-5 h-5" />
+      </button>
+
       <div className="flex-1" />
 
       {/* User Area */}
@@ -48,7 +61,7 @@ export function Header() {
                 <span className="text-sm font-medium text-white">
                   {currentUser.name}
                 </span>
-                <span className="text-xs text-gray-400">
+                <span className="text-xs text-gray-400 hidden sm:block">
                   {roleLabels[currentUser.role] ?? currentUser.role}
                 </span>
               </div>
@@ -118,14 +131,14 @@ export function Header() {
           <>
             <div className="flex flex-col items-end">
               <span className="text-sm font-medium text-white">{currentUser.name}</span>
-              <span className="text-xs text-gray-400">{roleLabels[currentUser.role] ?? currentUser.role}</span>
+              <span className="text-xs text-gray-400 hidden sm:block">{roleLabels[currentUser.role] ?? currentUser.role}</span>
             </div>
             <button
               onClick={() => signOut({ callbackUrl: '/login' })}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm text-gray-400 hover:text-white hover:bg-neutral-800 transition-colors"
             >
               <LogOut className="w-4 h-4" />
-              Sign out
+              <span className="hidden sm:inline">Sign out</span>
             </button>
           </>
         )}

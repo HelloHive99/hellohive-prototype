@@ -136,11 +136,11 @@ export default function Dashboard() {
 
   // Full dashboard for users with viewDashboard permission
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 md:space-y-8 pb-24 lg:pb-0">
       {/* Page Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-white">
+          <h1 className="text-xl md:text-2xl font-semibold tracking-tight text-white">
             Operations Dashboard
           </h1>
           <p className="text-sm text-gray-400 mt-1">
@@ -148,9 +148,9 @@ export default function Dashboard() {
           </p>
         </div>
 
-        {/* New Service Request Button - Only visible to users with createWorkOrders permission */}
+        {/* Desktop CTA — hidden on mobile (shown in sticky bar instead) */}
         {hasPermission('createWorkOrders') && (
-          <Button onClick={() => setIsModalOpen(true)}>
+          <Button onClick={() => setIsModalOpen(true)} className="hidden lg:inline-flex shrink-0">
             New Service Request
           </Button>
         )}
@@ -361,6 +361,15 @@ export default function Dashboard() {
           })}
         </div>
       </Card>
+
+      {/* Sticky mobile CTA bar */}
+      {hasPermission('createWorkOrders') && (
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-neutral-950/95 backdrop-blur-sm border-t border-slate-800/50 lg:hidden z-10">
+          <Button onClick={() => setIsModalOpen(true)} className="w-full py-3 text-base">
+            + New Service Request
+          </Button>
+        </div>
+      )}
 
       {/* New Service Request Modal */}
       <NewServiceRequestModal
